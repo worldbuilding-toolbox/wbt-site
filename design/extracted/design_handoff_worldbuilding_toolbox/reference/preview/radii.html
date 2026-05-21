@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="_card.css">
+<style>
+  body { padding: 28px 32px; display: flex; flex-direction: column; gap: 18px; }
+  .label {
+    font-family: var(--font-mono); font-size: 10px;
+    text-transform: uppercase; letter-spacing: 0.14em;
+    color: var(--steel-300); font-weight: 500;
+  }
+  .row { display: flex; gap: 32px; align-items: flex-end; }
+  .step { display: flex; flex-direction: column; gap: 8px; align-items: center; }
+  .box { width: 56px; height: 56px; background: var(--bg-elevated); border: 1px solid var(--border-strong); }
+  .v { font-family: var(--font-mono); font-size: 10px; color: var(--steel-300); }
+  .v-strong { font-family: var(--font-mono); font-size: 10px; color: var(--fg); text-transform: uppercase; letter-spacing: 0.1em; }
+</style>
+</head>
+<body>
+  <div class="label">Sharp by default — radii 0 → 6</div>
+  <div class="row">
+    <div class="step"><div class="box" style="border-radius:0"></div><div class="v-strong">0</div><div class="v">--radius-sm</div></div>
+    <div class="step"><div class="box" style="border-radius:2px"></div><div class="v-strong">2</div><div class="v">--radius-md</div></div>
+    <div class="step"><div class="box" style="border-radius:4px"></div><div class="v-strong">4</div><div class="v">--radius-lg</div></div>
+    <div class="step"><div class="box" style="border-radius:6px"></div><div class="v-strong">6</div><div class="v">--radius-xl</div></div>
+    <div class="step"><div class="box" style="border-radius:999px"></div><div class="v-strong">PILL</div><div class="v">--radius-pill</div></div>
+  </div>
+</body>
+</html>

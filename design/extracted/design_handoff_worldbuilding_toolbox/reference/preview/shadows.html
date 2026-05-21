@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="_card.css">
+<style>
+  body { padding: 28px 32px; display: flex; flex-direction: column; gap: 18px; }
+  .label {
+    font-family: var(--font-mono); font-size: 10px;
+    text-transform: uppercase; letter-spacing: 0.14em;
+    color: var(--steel-300); font-weight: 500;
+  }
+  .row { display: flex; gap: 32px; align-items: center; }
+  .step { display: flex; flex-direction: column; gap: 10px; align-items: center; }
+  .card { width: 84px; height: 84px; background: var(--bg-elevated); border-radius: var(--radius-md); }
+  .card.sm { box-shadow: 0 0 0 1px var(--space-700); }
+  .card.md { box-shadow: 0 0 0 1px var(--space-600), 0 4px 24px rgba(0, 0, 0, 0.4); }
+  .card.gl { box-shadow: 0 0 0 1px var(--space-600), 0 0 24px var(--cyan-glow); }
+  .card.lg { box-shadow: 0 0 0 1px var(--space-600), 0 12px 48px rgba(0, 0, 0, 0.6); }
+  .v { font-family: var(--font-mono); font-size: 10px; color: var(--steel-300); }
+</style>
+</head>
+<body>
+  <div class="label">Elevation — borders + glow, no soft drops</div>
+  <div class="row">
+    <div class="step"><div class="card sm"></div><div class="v">--shadow-sm</div></div>
+    <div class="step"><div class="card md"></div><div class="v">--shadow-md</div></div>
+    <div class="step"><div class="card lg"></div><div class="v">--shadow-lg</div></div>
+    <div class="step"><div class="card gl"></div><div class="v">--shadow-glow</div></div>
+  </div>
+</body>
+</html>

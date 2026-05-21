@@ -1,0 +1,139 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&family=JetBrains+Mono:wght@300..700&family=Source+Serif+4:opsz,wght@8..60,300..700&display=swap');
+
+/* ============================================================================
+   WORLDBUILDING TOOLBOX — Constellation Design System
+   ============================================================================ */
+
+:root {
+  /* Raw palette: dark space */
+  --space-950: #060810;
+  --space-900: #0b0e14;
+  --space-850: #11151d;
+  --space-800: #161b25;
+  --space-700: #1f2532;
+  --space-600: #2a3447;
+  --space-500: #3d485e;
+  --steel-400: #5a6275;
+  --steel-300: #8a91a3;
+  --bone-200:  #c6c9d2;
+  --bone-100:  #e6e7eb;
+  --bone-50:   #f5f5f8;
+
+  /* HUD accents */
+  --cyan:      #7fdbff;
+  --cyan-dim:  #4aa9c9;
+  --cyan-glow: rgba(127, 219, 255, 0.18);
+  --amber-hud: #f0b860;
+  --green-hud: #6ad6a3;
+  --red-hud:   #e86464;
+
+  /* Semantic surfaces */
+  --bg:           var(--space-900);
+  --bg-elevated:  var(--space-850);
+  --bg-sunken:    var(--space-950);
+  --bg-hover:     var(--space-800);
+  --bg-overlay:   rgba(6, 8, 16, 0.75);
+
+  /* Semantic foreground */
+  --fg:           var(--bone-100);
+  --fg-secondary: var(--steel-300);
+  --fg-muted:     var(--steel-400);
+  --fg-on-accent: var(--space-950);
+
+  /* Semantic borders */
+  --border:        var(--space-700);
+  --border-strong: var(--space-600);
+
+  /* Semantic accents */
+  --accent:       var(--cyan);
+  --accent-hover: var(--cyan-dim);
+  --accent-soft:  var(--cyan-glow);
+  --link:         var(--cyan);
+  --success:      var(--green-hud);
+  --warning:      var(--amber-hud);
+  --danger:       var(--red-hud);
+
+  /* Shadows */
+  --shadow-sm:   0 0 0 1px var(--space-700);
+  --shadow-md:   0 0 0 1px var(--space-600), 0 4px 24px rgba(0, 0, 0, 0.4);
+  --shadow-lg:   0 0 0 1px var(--space-600), 0 12px 48px rgba(0, 0, 0, 0.6);
+  --shadow-glow: 0 0 24px var(--cyan-glow);
+
+  /* Font families */
+  --font-sans:  "Space Grotesk", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-mono:  "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-serif: "Source Serif 4", Georgia, serif;
+
+  /* Radii: sharp, technical */
+  --radius-sm: 0px;
+  --radius-md: 2px;
+  --radius-lg: 4px;
+  --radius-xl: 6px;
+  --radius-pill: 999px;
+
+  /* Focus + grain */
+  --focus-ring: 0 0 0 2px var(--space-900), 0 0 0 4px var(--cyan);
+  --grain: repeating-linear-gradient(
+    0deg,
+    transparent 0px, transparent 2px,
+    rgba(127, 219, 255, 0.015) 2px, rgba(127, 219, 255, 0.015) 3px
+  );
+
+  /* Motion */
+  --ease-out: cubic-bezier(0.2, 0, 0, 1);
+  --duration-fast: 120ms;
+  --duration-med:  220ms;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4, h5, h6, p { margin: 0; }
+button { cursor: pointer; font-family: inherit; }
+input, textarea, select { font-family: inherit; color: var(--fg); }
+option { background: var(--bg-elevated); color: var(--fg); }
+a { color: var(--link); }
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg-sunken); }
+::-webkit-scrollbar-thumb { background: var(--space-700); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--space-600); }
+
+@keyframes twinkle {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 0.9; }
+}
+@keyframes drift {
+  0% { transform: translate(0, 0); }
+  33% { transform: translate(3px, -4px); }
+  66% { transform: translate(-2px, 2px); }
+  100% { transform: translate(0, 0); }
+}
+@keyframes pulse-glow {
+  0%, 100% { filter: drop-shadow(0 0 3px rgba(127,219,255,0.6)); }
+  50% { filter: drop-shadow(0 0 10px rgba(127,219,255,1)); }
+}
+@keyframes draw-underline {
+  from { stroke-dashoffset: 300; }
+  to { stroke-dashoffset: 0; }
+}
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.hero-underline {
+  stroke-dasharray: 300;
+  stroke-dashoffset: 300;
+  animation: draw-underline 1.4s var(--ease-out) forwards 0.4s;
+}
+.fade-in { animation: fade-in 0.3s var(--ease-out) forwards; }

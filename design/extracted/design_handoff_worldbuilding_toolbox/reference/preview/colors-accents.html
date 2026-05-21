@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html data-theme="constellation">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="_card.css">
+<style>
+  body { padding: 28px 32px; }
+  .row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
+  .sw { display: flex; gap: 14px; align-items: center; }
+  .chip { width: 56px; height: 56px; border-radius: 2px; border: 1px solid var(--space-700); flex-shrink: 0; }
+  .glow { box-shadow: 0 0 16px rgba(127, 219, 255, 0.4); }
+  .meta { display: flex; flex-direction: column; gap: 2px; }
+  .name { font-family: var(--font-mono); font-size: 13px; color: var(--fg); font-weight: 500; }
+  .role { font-family: var(--font-mono); font-size: 10px; color: var(--cyan); text-transform: uppercase; letter-spacing: 0.1em; }
+  .hex { font-family: var(--font-mono); font-size: 11px; color: var(--fg-secondary); }
+</style>
+</head>
+<body>
+  <div class="row">
+    <div class="sw">
+      <div class="chip glow" style="background:#7fdbff"></div>
+      <div class="meta"><div class="name">Cyan</div><div class="role">--accent</div><div class="hex">#7fdbff</div></div>
+    </div>
+    <div class="sw">
+      <div class="chip" style="background:#6ad6a3"></div>
+      <div class="meta"><div class="name">Green</div><div class="role">--success</div><div class="hex">#6ad6a3</div></div>
+    </div>
+    <div class="sw">
+      <div class="chip" style="background:#f0b860"></div>
+      <div class="meta"><div class="name">Amber</div><div class="role">--warning</div><div class="hex">#f0b860</div></div>
+    </div>
+    <div class="sw">
+      <div class="chip" style="background:#e86464"></div>
+      <div class="meta"><div class="name">Red</div><div class="role">--danger</div><div class="hex">#e86464</div></div>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="_card.css">
+<style>
+  body { padding: 24px 28px; display: flex; flex-direction: column; gap: 14px; }
+  .label {
+    font-family: var(--font-mono); font-size: 10px;
+    text-transform: uppercase; letter-spacing: 0.14em;
+    color: var(--steel-300); font-weight: 500;
+  }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .badge {
+    font-family: var(--font-mono); font-size: 10px;
+    padding: 3px 8px; border-radius: var(--radius-sm); line-height: 1.4;
+    display: inline-flex; align-items: center; gap: 5px;
+    background: transparent; color: var(--steel-300);
+    border: 1px solid var(--space-600);
+    text-transform: uppercase; letter-spacing: 0.1em;
+  }
+  .badge.accent { border-color: var(--cyan); color: var(--cyan); }
+  .badge.success { border-color: var(--green-hud); color: var(--green-hud); }
+  .badge.warning { border-color: var(--amber-hud); color: var(--amber-hud); }
+  .badge.danger { border-color: var(--red-hud); color: var(--red-hud); }
+  .badge.solid { background: var(--cyan); color: var(--space-950); border-color: var(--cyan); font-weight: 600; }
+  .dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+</style>
+</head>
+<body>
+  <div class="label">Outlined</div>
+  <div class="row">
+    <span class="badge">DRAFT</span>
+    <span class="badge accent"><span class="dot"></span>ACTIVE</span>
+    <span class="badge success">PUBLISHED</span>
+    <span class="badge warning">UNSAVED</span>
+    <span class="badge danger">PURGED</span>
+    <span class="badge">ARCHIVED</span>
+  </div>
+  <div class="label">Solid · IDs</div>
+  <div class="row">
+    <span class="badge solid">CRITICAL</span>
+    <span class="badge">ID-042</span>
+    <span class="badge">SECTOR 04</span>
+    <span class="badge">SY 4192</span>
+    <span class="badge accent">REVIEWED</span>
+  </div>
+</body>
+</html>

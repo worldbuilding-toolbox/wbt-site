@@ -1,0 +1,242 @@
+/* ============================================================================
+   WORLDBUILDING TOOLBOX — Design Tokens
+   ----------------------------------------------------------------------------
+   Single theme: Constellation. Dark HUD sci-fi with mono accents and faint
+   scan lines. Medium intensity — restrained, not neon. Components reference
+   the semantic layer (--bg, --fg, --accent, --border, --shadow-md, etc.).
+   Reach for the raw scale (--space-700, --cyan, etc.) only when you genuinely
+   need a specific value the semantic layer doesn't expose.
+   ============================================================================ */
+
+/* ---------- Fonts ---------------------------------------------------------- */
+
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&family=JetBrains+Mono:wght@300..700&family=Source+Serif+4:opsz,wght@8..60,300..700&display=swap');
+
+/* ============================================================================
+   ROOT — Constellation
+   ============================================================================ */
+
+:root {
+  /* --- Raw palette: dark space ----------------------------------------- */
+  --space-950: #060810;   /* deepest                                       */
+  --space-900: #0b0e14;   /* primary background                            */
+  --space-850: #11151d;   /* elevated surface                              */
+  --space-800: #161b25;   /* hover surface                                 */
+  --space-700: #1f2532;   /* HUD border                                    */
+  --space-600: #2a3447;   /* divider / strong border                       */
+  --space-500: #3d485e;   /* muted border                                  */
+  --steel-400: #5a6275;   /* muted text                                    */
+  --steel-300: #8a91a3;   /* secondary text                                */
+  --bone-200:  #c6c9d2;   /* near-foreground                               */
+  --bone-100:  #e6e7eb;   /* primary foreground                            */
+  --bone-50:   #f5f5f8;   /* high-emphasis                                 */
+
+  /* --- Raw palette: HUD accents ---------------------------------------- */
+  --cyan:      #7fdbff;   /* primary HUD accent                            */
+  --cyan-dim:  #4aa9c9;
+  --cyan-glow: rgba(127, 219, 255, 0.18);
+  --amber-hud: #f0b860;   /* warning / annotation                          */
+  --green-hud: #6ad6a3;   /* success / online                              */
+  --red-hud:   #e86464;   /* danger                                        */
+
+  /* --- Semantic surfaces ----------------------------------------------- */
+  --bg:           var(--space-900);
+  --bg-elevated:  var(--space-850);
+  --bg-sunken:    var(--space-950);
+  --bg-hover:     var(--space-800);
+  --bg-overlay:   rgba(6, 8, 16, 0.75);
+
+  /* --- Semantic foreground --------------------------------------------- */
+  --fg:           var(--bone-100);
+  --fg-secondary: var(--steel-300);
+  --fg-muted:     var(--steel-400);
+  --fg-on-accent: var(--space-950);
+
+  /* --- Semantic borders & lines ---------------------------------------- */
+  --border:        var(--space-700);
+  --border-strong: var(--space-600);
+  --rule:          var(--space-700);
+
+  /* --- Semantic accents ------------------------------------------------ */
+  --accent:       var(--cyan);
+  --accent-hover: var(--cyan-dim);
+  --accent-soft:  var(--cyan-glow);
+  --link:         var(--cyan);
+  --success:      var(--green-hud);
+  --warning:      var(--amber-hud);
+  --danger:       var(--red-hud);
+
+  /* --- Shadows: borders + faint glow, no soft drop shadows ------------- */
+  --shadow-sm: 0 0 0 1px var(--space-700);
+  --shadow-md: 0 0 0 1px var(--space-600), 0 4px 24px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 0 0 1px var(--space-600), 0 12px 48px rgba(0, 0, 0, 0.6);
+  --shadow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.02);
+  --shadow-glow: 0 0 24px var(--cyan-glow);
+
+  /* --- Font families --------------------------------------------------- */
+  --font-sans:  "Space Grotesk", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-mono:  "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-serif: "Source Serif 4", Georgia, serif;  /* reserved for long-form reading body */
+
+  /* --- Type roles: sans-led, mono for HUD chrome ----------------------- */
+  --font-display: var(--font-sans);
+  --font-body:    var(--font-sans);
+  --font-ui:      var(--font-mono);     /* labels, badges, metadata, controls */
+
+  /* --- Radii: sharp, technical ----------------------------------------- */
+  --radius-sm: 0px;
+  --radius-md: 2px;
+  --radius-lg: 4px;
+  --radius-xl: 6px;
+  --radius-pill: 999px;
+
+  /* --- Focus + scan-line texture --------------------------------------- */
+  --focus-ring: 0 0 0 2px var(--space-900), 0 0 0 4px var(--cyan);
+  --grain: repeating-linear-gradient(
+    0deg,
+    transparent 0px,
+    transparent 2px,
+    rgba(127, 219, 255, 0.015) 2px,
+    rgba(127, 219, 255, 0.015) 3px
+  );
+
+  /* --- Spacing scale (4px base) ---------------------------------------- */
+  --space-0:  0;
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  20px;
+  --space-6:  24px;
+  --space-8:  32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-20: 80px;
+  --space-24: 96px;
+
+  /* --- Type scale (rem, 16px root) ------------------------------------- */
+  --text-xs:   0.75rem;   /* 12 */
+  --text-sm:   0.875rem;  /* 14 */
+  --text-base: 1rem;      /* 16 */
+  --text-md:   1.0625rem; /* 17 */
+  --text-lg:   1.25rem;   /* 20 */
+  --text-xl:   1.5rem;    /* 24 */
+  --text-2xl:  1.875rem;  /* 30 */
+  --text-3xl:  2.25rem;   /* 36 */
+  --text-4xl:  3rem;      /* 48 */
+  --text-5xl:  4rem;      /* 64 */
+  --text-6xl:  5.5rem;    /* 88 */
+
+  /* --- Line heights ---------------------------------------------------- */
+  --leading-tight:   1.1;
+  --leading-snug:    1.25;
+  --leading-normal:  1.5;
+  --leading-relaxed: 1.65;
+
+  /* --- Letter spacing -------------------------------------------------- */
+  --tracking-tight:  -0.03em;
+  --tracking-normal: 0;
+  --tracking-wide:   0.04em;
+  --tracking-wider:  0.14em;   /* HUD labels (uppercased) */
+
+  /* --- Motion ---------------------------------------------------------- */
+  --ease-out: cubic-bezier(0.2, 0, 0, 1);
+  --ease-in-out: cubic-bezier(0.5, 0, 0.2, 1);
+  --duration-fast: 120ms;
+  --duration-med:  220ms;
+  --duration-slow: 420ms;
+
+  /* --- Layout ---------------------------------------------------------- */
+  --measure: 68ch;
+  --container-narrow: 720px;
+  --container: 1080px;
+  --container-wide: 1320px;
+}
+
+
+/* ============================================================================
+   SEMANTIC TYPE ROLES
+   ============================================================================ */
+
+.h1, h1 {
+  font-family: var(--font-display);
+  font-size: var(--text-4xl);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-tight);
+  font-weight: 500;
+  color: var(--fg);
+  margin: 0;
+}
+
+.h2, h2 {
+  font-family: var(--font-display);
+  font-size: var(--text-3xl);
+  line-height: var(--leading-tight);
+  letter-spacing: -0.02em;
+  font-weight: 500;
+  color: var(--fg);
+  margin: 0;
+}
+
+.h3, h3 {
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  line-height: var(--leading-snug);
+  font-weight: 500;
+  color: var(--fg);
+  margin: 0;
+}
+
+.h4, h4 {
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  line-height: var(--leading-snug);
+  font-weight: 500;
+  color: var(--fg);
+  margin: 0;
+}
+
+.lede {
+  font-family: var(--font-body);
+  font-size: var(--text-lg);
+  line-height: var(--leading-normal);
+  color: var(--fg-secondary);
+  font-weight: 300;
+}
+
+.body, p {
+  font-family: var(--font-body);
+  font-size: var(--text-md);
+  line-height: var(--leading-relaxed);
+  color: var(--fg);
+}
+
+.ui {
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--fg);
+}
+
+.ui-label, .hud-label {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wider);
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.caption {
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+  line-height: var(--leading-normal);
+}
+
+.mono, code, kbd {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+  letter-spacing: 0;
+}

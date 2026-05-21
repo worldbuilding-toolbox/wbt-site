@@ -1,0 +1,44 @@
+/* Shared base for preview cards.
+   Cards render in the Design System review tab at their registered viewport.
+   Skip frames/titles — the asset name renders OUTSIDE the card. Just show the
+   thing. */
+
+@import url('../colors_and_type.css');
+
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+}
+body {
+  padding: 24px 28px;
+  min-height: 100vh;
+}
+body.tight { padding: 20px 24px; }
+body.flush { padding: 0; }
+
+.row { display: flex; align-items: center; gap: 16px; }
+.col { display: flex; flex-direction: column; gap: 12px; }
+.muted { color: var(--fg-muted); }
+.secondary { color: var(--fg-secondary); }
+.ui-label {
+  font-family: var(--font-ui);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--fg-muted);
+  font-weight: 500;
+}
+[data-theme="constellation"] .ui-label {
+  font-family: var(--font-mono);
+  color: var(--steel-300);
+}
+.token {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-muted);
+}

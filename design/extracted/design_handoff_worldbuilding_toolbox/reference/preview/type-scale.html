@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="_card.css">
+<style>
+  body { padding: 24px 32px; }
+  .scale { display: flex; flex-direction: column; gap: 6px; }
+  .step { display: grid; grid-template-columns: 56px 1fr 130px; gap: 24px; align-items: baseline; }
+  .px { font-family: var(--font-mono); font-size: 11px; color: var(--steel-300); }
+  .sample { font-family: var(--font-sans); color: var(--fg); line-height: 1.05; font-weight: 500; letter-spacing: -0.02em; }
+  .token-row { font-family: var(--font-mono); font-size: 10px; color: var(--steel-400); text-align: right; text-transform: uppercase; letter-spacing: 0.1em; }
+</style>
+</head>
+<body>
+  <div class="scale">
+    <div class="step"><span class="px">64</span><span class="sample" style="font-size:64px">Aa</span><span class="token-row">--text-5xl</span></div>
+    <div class="step"><span class="px">48</span><span class="sample" style="font-size:48px">A sector</span><span class="token-row">--text-4xl · H1</span></div>
+    <div class="step"><span class="px">36</span><span class="sample" style="font-size:36px">A sector charted.</span><span class="token-row">--text-3xl · H2</span></div>
+    <div class="step"><span class="px">30</span><span class="sample" style="font-size:30px">A sector charted slowly</span><span class="token-row">--text-2xl · H3</span></div>
+    <div class="step"><span class="px">24</span><span class="sample" style="font-size:24px">A sector charted slowly and well</span><span class="token-row">--text-xl · H4</span></div>
+    <div class="step"><span class="px">20</span><span class="sample" style="font-size:20px; color:var(--steel-300); font-weight:300">A sector charted slowly and well, in time.</span><span class="token-row">--text-lg · LEDE</span></div>
+    <div class="step"><span class="px">17</span><span class="sample" style="font-size:17px; font-weight:400">A sector charted slowly and well, in time.</span><span class="token-row">--text-md · BODY</span></div>
+    <div class="step"><span class="px">14</span><span class="sample" style="font-size:14px; font-weight:400">A sector charted slowly and well, in its own time.</span><span class="token-row">--text-sm · UI</span></div>
+    <div class="step"><span class="px">12</span><span class="sample" style="font-size:12px; font-family:var(--font-mono); color: var(--cyan); text-transform: uppercase; letter-spacing: 0.14em">SECTOR · LABEL · CAPTION</span><span class="token-row">--text-xs · MONO</span></div>
+  </div>
+</body>
+</html>

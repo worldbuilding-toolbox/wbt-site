@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="_card.css">
+<style>
+  body { padding: 24px 28px; display: grid; grid-template-columns: 1fr 1fr; gap: 18px 24px; }
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field label {
+    font-family: var(--font-mono); font-size: 10px;
+    color: var(--accent); text-transform: uppercase; letter-spacing: 0.14em;
+    font-weight: 500;
+  }
+  .input {
+    font-family: var(--font-sans); font-size: 14px;
+    padding: 9px 12px; border-radius: var(--radius-md);
+    border: 1px solid var(--border-strong);
+    background: var(--bg-elevated); color: var(--fg);
+    outline: none; line-height: 1.3;
+  }
+  .input::placeholder { color: var(--steel-400); }
+  .input.focused { border-color: var(--cyan); box-shadow: 0 0 0 1px var(--cyan) inset, 0 0 16px var(--cyan-glow); }
+  .input.error { border-color: var(--red-hud); }
+  .hint { font-family: var(--font-mono); font-size: 10px; color: var(--steel-300); }
+  .hint.err { color: var(--red-hud); }
+  .input-wrap { position: relative; display: flex; }
+  .input-wrap svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--steel-300); }
+  .input.with-icon { padding-left: 32px; flex: 1; }
+</style>
+</head>
+<body>
+  <div class="field">
+    <label>Sector designation</label>
+    <input class="input" value="04-A Veris">
+  </div>
+  <div class="field">
+    <label>Standard year</label>
+    <input class="input focused" value="SY 4192.06.12">
+    <span class="hint">FORMAT · SY YYYY.MM.DD</span>
+  </div>
+  <div class="field">
+    <label>Search archive</label>
+    <div class="input-wrap">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="10" cy="10" r="7"/><path d="M21 21l-6 -6"/></svg>
+      <input class="input with-icon" placeholder="QUERY...">
+    </div>
+  </div>
+  <div class="field">
+    <label>Beacon ID</label>
+    <input class="input error" value="BCN-—-INVALID">
+    <span class="hint err">UNRECOGNIZED SCHEMA</span>
+  </div>
+</body>
+</html>

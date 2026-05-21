@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="_card.css">
+<style>
+  body { padding: 24px 28px; background-image: var(--grain); display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .card {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 18px 20px;
+    display: flex; flex-direction: column; gap: 8px;
+    position: relative;
+  }
+  .card .id {
+    position: absolute; top: 14px; right: 16px;
+    font-family: var(--font-mono); font-size: 10px;
+    color: var(--cyan); text-transform: uppercase; letter-spacing: 0.14em;
+  }
+  .card h4 {
+    font-family: var(--font-sans); font-size: 20px; font-weight: 500;
+    color: var(--fg); margin: 0; padding-right: 80px; letter-spacing: -0.01em;
+  }
+  .card p {
+    font-family: var(--font-sans); font-size: 14px; line-height: 1.55;
+    color: var(--steel-300); margin: 0;
+  }
+  .meta {
+    font-family: var(--font-mono); font-size: 10px;
+    color: var(--steel-400); text-transform: uppercase; letter-spacing: 0.12em;
+    margin-top: 4px; display: flex; gap: 14px;
+  }
+  .meta span:not(:last-child)::after { content: "·"; margin-left: 14px; color: var(--space-600); }
+  .card.selected { box-shadow: 0 0 0 1px var(--cyan), 0 0 24px var(--cyan-glow); }
+</style>
+</head>
+<body>
+  <div class="card">
+    <span class="id">ID-042</span>
+    <h4>Veris-3 Outpost</h4>
+    <p>Twelve waypoints, three contested. Crew log preserved on physical paper.</p>
+    <div class="meta"><span>SY 4192.06</span><span>47 ENTRIES</span><span>ACTIVE</span></div>
+  </div>
+  <div class="card selected">
+    <span class="id">ID-018</span>
+    <h4>The Salt-Lock Concordat</h4>
+    <p>An eight-year ceasefire brokered by the lock-keepers of Vethran. Three signatories survive.</p>
+    <div class="meta"><span>SY 4188.11</span><span>12 ENTRIES</span><span>SELECTED</span></div>
+  </div>
+</body>
+</html>

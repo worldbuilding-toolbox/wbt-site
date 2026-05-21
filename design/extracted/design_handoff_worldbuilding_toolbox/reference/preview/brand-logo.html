@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="_card.css">
+<style>
+  body { padding: 0; }
+  .pane { padding: 28px 32px; display: flex; flex-direction: column; gap: 16px; align-items: center; justify-content: center; min-height: 200px; }
+  .label {
+    font-family: var(--font-mono); font-size: 10px;
+    text-transform: uppercase; letter-spacing: 0.14em;
+    color: var(--steel-300); font-weight: 500;
+    align-self: flex-start;
+  }
+  .logo {
+    font-family: var(--font-sans); font-size: 32px;
+    font-weight: 500; letter-spacing: -0.02em;
+    color: var(--fg); line-height: 1;
+    display: inline-flex; align-items: baseline; gap: 0.18em;
+  }
+  .logo .toolbox { color: var(--steel-300); font-weight: 400; }
+  .logo.sm { font-size: 18px; }
+  .short {
+    font-family: var(--font-sans); font-size: 32px; font-weight: 600;
+    letter-spacing: -0.04em; color: var(--fg);
+    display: inline-flex; align-items: baseline;
+  }
+  .short .dot { color: var(--cyan); }
+  .row { display: flex; gap: 32px; align-items: baseline; }
+</style>
+</head>
+<body>
+  <div class="pane">
+    <span class="label">Logotype</span>
+    <div class="logo"><span>Worldbuilding</span><span class="toolbox">Toolbox</span></div>
+    <div class="row">
+      <div class="short">Wt<span class="dot">.</span></div>
+      <span class="logo sm"><span>Worldbuilding</span><span class="toolbox">Toolbox</span></span>
+    </div>
+  </div>
+</body>
+</html>
