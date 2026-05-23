@@ -1,6 +1,7 @@
 "use client";
 import React from "react";
 import { Button, IconButton, Icon, Tag, Divider, Modal, Input, Field, Textarea, Select } from "./Primitives";
+import { useIsMobile } from "./hooks";
 import {
   getArticles, saveArticles, createArticle,
   type World, type Article, type BodyBlock, type Attachment, type Fact,
@@ -35,6 +36,8 @@ export function ArticleView({ world, searchQuery }: { world: World; searchQuery:
   const [editing, setEditing] = React.useState(false);
   const [showCreate, setShowCreate] = React.useState(false);
   const [filterQ, setFilterQ] = React.useState("");
+  const [mobileShowList, setMobileShowList] = React.useState(true);
+  const isMobile = useIsMobile();
 
   const reload = () => {
     const arts = getArticles(world.id);
@@ -64,68 +67,83 @@ export function ArticleView({ world, searchQuery }: { world: World; searchQuery:
     setShowCreate(false);
   };
 
-  return (
-    <div style={{ display: "flex", height: "calc(100vh - 56px)" }}>
-      {/* Article list */}
-      <aside style={{ width: 240, flexShrink: 0, borderRight: "1px solid var(--border)", background: "var(--bg-sunken)", overflow: "auto" }}>
-        <div style={{ padding: "12px 12px", borderBottom: "1px solid var(--border)", display: "flex", gap: 8, alignItems: "center" }}>
-          <Icon name="search" size={13} style={{ color: "var(--fg-muted)" }} />
-          <input
-            placeholder="FILTER..."
-            value={filterQ}
-            onChange={(e) => setFilterQ(e.target.value)}
-            style={{
-              background: "transparent", border: "none", outline: "none",
-              fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--fg)",
-              textTransform: "uppercase", letterSpacing: "0.08em", flex: 1, minWidth: 0,
-            }}
-          />
-          <IconButton icon="plus" label="New article" size={14} onClick={() => setShowCreate(true)} />
-        </div>
+  const topBarHeight = isMobile ? 52 : 56;
+  const showList = !isMobile || mobileShowList || !active;
+  const showBody = !isMobile || !mobileShowList;
 
-        <div style={{ padding: "8px 6px" }}>
-          {Object.keys(groups).length === 0 && (
-            <div style={{ padding: "24px 12px", fontFamily: "var(--font-sans)", fontSize: 13, color: "var(--fg-muted)", textAlign: "center" }}>
-              {articles.length === 0 ? "No articles yet." : "No matches."}
+  const listAside = (
+    <aside style={{
+      width: isMobile ? "100%" : 240,
+      flexShrink: 0,
+      borderRight: isMobile ? "none" : "1px solid var(--border)",
+      background: "var(--bg-sunken)",
+      overflow: "auto",
+    }}>
+      <div style={{ padding: "12px 12px", borderBottom: "1px solid var(--border)", display: "flex", gap: 8, alignItems: "center" }}>
+        <Icon name="search" size={13} style={{ color: "var(--fg-muted)" }} />
+        <input
+          placeholder="FILTER..."
+          value={filterQ}
+          onChange={(e) => setFilterQ(e.target.value)}
+          style={{
+            background: "transparent", border: "none", outline: "none",
+            fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--fg)",
+            textTransform: "uppercase", letterSpacing: "0.08em", flex: 1, minWidth: 0,
+          }}
+        />
+        <IconButton icon="plus" label="New article" size={14} onClick={() => setShowCreate(true)} />
+      </div>
+
+      <div style={{ padding: "8px 6px" }}>
+        {Object.keys(groups).length === 0 && (
+          <div style={{ padding: "24px 12px", fontFamily: "var(--font-sans)", fontSize: 13, color: "var(--fg-muted)", textAlign: "center" }}>
+            {articles.length === 0 ? "No articles yet." : "No matches."}
+          </div>
+        )}
+        {Object.entries(groups).map(([kind, items]) => (
+          <div key={kind} style={{ marginBottom: 12 }}>
+            <div style={{ fontFamily: "var(--font-mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.14em", color: "var(--fg-muted)", padding: "0 8px 6px" }}>
+              {kind}s · {items.length}
             </div>
-          )}
-          {Object.entries(groups).map(([kind, items]) => (
-            <div key={kind} style={{ marginBottom: 12 }}>
-              <div style={{ fontFamily: "var(--font-mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.14em", color: "var(--fg-muted)", padding: "0 8px 6px" }}>
-                {kind}s · {items.length}
-              </div>
-              {items.map((a) => (
-                <button
-                  key={a.id}
-                  onClick={() => { setActiveId(a.id); setEditing(false); }}
-                  style={{
-                    display: "flex", alignItems: "center", gap: 10,
-                    width: "100%", padding: "7px 10px",
-                    background: a.id === activeId ? "var(--bg-hover)" : "transparent",
-                    border: "none",
-                    borderLeft: a.id === activeId ? "2px solid var(--accent)" : "2px solid transparent",
-                    color: a.id === activeId ? "var(--fg)" : "var(--fg-secondary)",
-                    cursor: "pointer", textAlign: "left",
-                    fontFamily: "var(--font-sans)", fontSize: 13,
-                    borderRadius: "var(--radius-sm)",
-                  }}
-                >
-                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: a.color || KIND_COLORS[a.kind] || "#555", flexShrink: 0 }} />
-                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.title}</span>
-                </button>
-              ))}
-            </div>
-          ))}
-        </div>
-      </aside>
+            {items.map((a) => (
+              <button
+                key={a.id}
+                onClick={() => { setActiveId(a.id); setEditing(false); if (isMobile) setMobileShowList(false); }}
+                style={{
+                  display: "flex", alignItems: "center", gap: 10,
+                  width: "100%", padding: isMobile ? "10px 12px" : "7px 10px",
+                  background: a.id === activeId && !isMobile ? "var(--bg-hover)" : "transparent",
+                  border: "none",
+                  borderLeft: a.id === activeId && !isMobile ? "2px solid var(--accent)" : "2px solid transparent",
+                  color: a.id === activeId && !isMobile ? "var(--fg)" : "var(--fg-secondary)",
+                  cursor: "pointer", textAlign: "left",
+                  fontFamily: "var(--font-sans)", fontSize: isMobile ? 14 : 13,
+                  borderRadius: "var(--radius-sm)",
+                }}
+              >
+                <span style={{ width: 6, height: 6, borderRadius: "50%", background: a.color || KIND_COLORS[a.kind] || "#555", flexShrink: 0 }} />
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.title}</span>
+              </button>
+            ))}
+          </div>
+        ))}
+      </div>
+    </aside>
+  );
+
+  return (
+    <div style={{ display: "flex", height: `calc(100vh - ${topBarHeight}px)` }}>
+      {showList && listAside}
 
       {/* Article body */}
-      {active ? (
+      {showBody && (active ? (
         <ArticleEditor
           article={active}
           editing={editing}
           world={world}
           articles={articles}
+          isMobile={isMobile}
+          onBackToList={isMobile ? () => setMobileShowList(true) : undefined}
           onToggleEdit={() => { setEditing(!editing); }}
           onUpdate={updateActive}
           onDelete={() => {
@@ -134,6 +152,7 @@ export function ArticleView({ world, searchQuery }: { world: World; searchQuery:
             setArticles(updated);
             setActiveId(updated[0]?.id || null);
             setEditing(false);
+            if (isMobile) setMobileShowList(true);
           }}
         />
       ) : (
@@ -142,7 +161,7 @@ export function ArticleView({ world, searchQuery }: { world: World; searchQuery:
           <div style={{ fontFamily: "var(--font-sans)", fontSize: 16, color: "var(--fg-secondary)" }}>No article selected</div>
           <Button variant="primary" icon="plus" onClick={() => setShowCreate(true)}>New article</Button>
         </div>
-      )}
+      ))}
 
       {showCreate && (
         <CreateArticleModal
@@ -158,9 +177,10 @@ export function ArticleView({ world, searchQuery }: { world: World; searchQuery:
 // Article editor
 // ============================================================================
 
-function ArticleEditor({ article, editing, world, articles, onToggleEdit, onUpdate, onDelete }: {
+function ArticleEditor({ article, editing, world, articles, onToggleEdit, onUpdate, onDelete, isMobile, onBackToList }: {
   article: Article; editing: boolean; world: World; articles: Article[];
   onToggleEdit: () => void; onUpdate: (p: Partial<Article>) => void; onDelete: () => void;
+  isMobile?: boolean; onBackToList?: () => void;
 }) {
   const [showAddSection, setShowAddSection] = React.useState(false);
   const [showAddAttachment, setShowAddAttachment] = React.useState(false);
@@ -239,14 +259,26 @@ function ArticleEditor({ article, editing, world, articles, onToggleEdit, onUpda
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "auto", minWidth: 0 }}>
       {/* Toolbar */}
-      <div style={{ position: "sticky", top: 0, zIndex: 5, background: "var(--bg)", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 8, padding: "10px 32px" }}>
+      <div style={{
+        position: "sticky", top: 0, zIndex: 5, background: "var(--bg)",
+        borderBottom: "1px solid var(--border)",
+        display: "flex", alignItems: "center", gap: 8,
+        padding: isMobile ? "10px 12px" : "10px 32px",
+      }}>
+        {onBackToList && (
+          <IconButton icon="chevron-left" label="Back to list" onClick={onBackToList} />
+        )}
         <Tag tone="accent">{article.kind}</Tag>
-        <Tag tone="neutral">{article.id}</Tag>
+        {!isMobile && <Tag tone="neutral">{article.id}</Tag>}
         <div style={{ flex: 1 }} />
-        <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--fg-muted)", textTransform: "uppercase", letterSpacing: "0.1em" }}>
-          {editing ? "Editing" : `Updated ${new Date(article.updatedAt).toLocaleDateString()}`}
-        </span>
-        <Divider vertical />
+        {!isMobile && (
+          <>
+            <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--fg-muted)", textTransform: "uppercase", letterSpacing: "0.1em" }}>
+              {editing ? "Editing" : `Updated ${new Date(article.updatedAt).toLocaleDateString()}`}
+            </span>
+            <Divider vertical />
+          </>
+        )}
         {editing && (
           <Button variant="danger" size="sm" icon="trash" onClick={() => { if (confirm("Delete this article?")) onDelete(); }} />
         )}
@@ -258,15 +290,20 @@ function ArticleEditor({ article, editing, world, articles, onToggleEdit, onUpda
         >
           {editing ? "Save" : "Edit"}
         </Button>
-        <IconButton icon="dots-vertical" label="More" />
+        {!isMobile && <IconButton icon="dots-vertical" label="More" />}
       </div>
 
       {/* Body */}
-      <div style={{ flex: 1, padding: "40px 32px 96px", overflow: "auto" }}>
-        <div style={{ maxWidth: 720, margin: "0 auto", display: "flex", flexDirection: "column", gap: 28 }}>
+      <div style={{ flex: 1, padding: isMobile ? "24px 16px 80px" : "40px 32px 96px", overflow: "auto" }}>
+        <div style={{ maxWidth: 720, margin: "0 auto", display: "flex", flexDirection: "column", gap: isMobile ? 22 : 28 }}>
 
           {/* Header: image + title */}
-          <div style={{ display: "flex", gap: 24, alignItems: "flex-start" }}>
+          <div style={{
+            display: "flex",
+            flexDirection: isMobile ? "column" : "row",
+            gap: isMobile ? 16 : 24,
+            alignItems: isMobile ? "stretch" : "flex-start",
+          }}>
             {/* Image */}
             <div style={{ position: "relative", flexShrink: 0 }}>
               <div style={{
@@ -316,13 +353,13 @@ function ArticleEditor({ article, editing, world, articles, onToggleEdit, onUpda
                   value={article.title}
                   onChange={(e) => onUpdate({ title: e.target.value })}
                   style={{
-                    fontFamily: "var(--font-sans)", fontSize: 36, fontWeight: 500, letterSpacing: "-0.02em",
+                    fontFamily: "var(--font-sans)", fontSize: isMobile ? 26 : 36, fontWeight: 500, letterSpacing: "-0.02em",
                     background: "transparent", border: "none", outline: "none", color: "var(--fg)",
                     borderBottom: "1px dashed var(--accent)", paddingBottom: 4, width: "100%",
                   }}
                 />
               ) : (
-                <h1 style={{ fontFamily: "var(--font-sans)", fontSize: 36, fontWeight: 500, letterSpacing: "-0.02em", color: "var(--fg)", lineHeight: 1.05 }}>
+                <h1 style={{ fontFamily: "var(--font-sans)", fontSize: isMobile ? 26 : 36, fontWeight: 500, letterSpacing: "-0.02em", color: "var(--fg)", lineHeight: 1.05 }}>
                   {article.title}
                 </h1>
               )}

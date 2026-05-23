@@ -1,6 +1,7 @@
 "use client";
 import React from "react";
 import { Button, Icon, Modal, Input, Field, Textarea, Tag } from "./Primitives";
+import { useIsMobile } from "./hooks";
 import { createWorld, seedWorld, deleteWorld, type User, type World } from "./store";
 
 export function Dashboard({
@@ -14,6 +15,7 @@ export function Dashboard({
   const [showCreate, setShowCreate] = React.useState(false);
   const [deleteId, setDeleteId] = React.useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = React.useState("");
+  const isMobile = useIsMobile();
 
   const handleCreate = (name: string, genre: string, tagline: string) => {
     const world = createWorld(user.id, name, genre, tagline);
@@ -34,24 +36,38 @@ export function Dashboard({
   const worldToDelete = worlds.find((w) => w.id === deleteId) ?? null;
 
   return (
-    <div style={{ padding: "40px 48px", maxWidth: 1200, margin: "0 auto" }}>
-      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 32 }}>
+    <div style={{ padding: isMobile ? "24px 16px 32px" : "40px 48px", maxWidth: 1200, margin: "0 auto" }}>
+      <div style={{
+        display: "flex",
+        flexDirection: isMobile ? "column" : "row",
+        alignItems: isMobile ? "stretch" : "flex-end",
+        justifyContent: "space-between",
+        gap: isMobile ? 18 : 0,
+        marginBottom: isMobile ? 24 : 32,
+      }}>
         <div>
           <div style={{ fontFamily: "var(--font-mono)", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.16em", color: "var(--fg-muted)", fontWeight: 500, marginBottom: 8 }}>
             Archive / Worlds
           </div>
-          <h1 style={{ fontFamily: "var(--font-sans)", fontSize: 36, letterSpacing: "-0.02em", fontWeight: 500, color: "var(--fg)" }}>
+          <h1 style={{ fontFamily: "var(--font-sans)", fontSize: isMobile ? 28 : 36, letterSpacing: "-0.02em", fontWeight: 500, color: "var(--fg)" }}>
             Worlds
           </h1>
-          <p style={{ fontFamily: "var(--font-sans)", fontSize: 16, color: "var(--fg-secondary)", marginTop: 8 }}>
+          <p style={{ fontFamily: "var(--font-sans)", fontSize: isMobile ? 14 : 16, color: "var(--fg-secondary)", marginTop: 8 }}>
             {worlds.length} {worlds.length === 1 ? "world" : "worlds"}.
             {worlds.length === 0 ? " Start your first." : " Open one, or start fresh."}
           </p>
         </div>
-        <Button variant="primary" icon="plus" onClick={() => setShowCreate(true)}>New world</Button>
+        <Button
+          variant="primary"
+          icon="plus"
+          onClick={() => setShowCreate(true)}
+          style={isMobile ? { alignSelf: "stretch", justifyContent: "center" } : undefined}
+        >
+          New world
+        </Button>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 16 }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fill, minmax(280px, 1fr))", gap: isMobile ? 12 : 16 }}>
         {worlds.map((w) => (
           <WorldCard key={w.id} world={w} onOpen={() => onOpenWorld(w.id)} onDelete={() => setDeleteId(w.id)} />
         ))}

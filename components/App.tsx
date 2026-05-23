@@ -7,6 +7,7 @@ import { Timeline } from "./Timeline";
 import { ArticleView } from "./Article";
 import { IdeaInbox } from "./IdeaInbox";
 import { Help } from "./Help";
+import { useIsMobile } from "./hooks";
 import { getCurrentUser, getWorlds, signOut, type User, type World } from "./store";
 
 type Screen = "dashboard" | "world";
@@ -19,6 +20,8 @@ export default function App() {
   const [currentWorldId, setCurrentWorldId] = React.useState<string | null>(null);
   const [view, setView] = React.useState<WorldView>("timeline");
   const [searchQuery, setSearchQuery] = React.useState("");
+  const [menuOpen, setMenuOpen] = React.useState(false);
+  const isMobile = useIsMobile();
 
   // Hydrate from localStorage on mount
   React.useEffect(() => {
@@ -81,6 +84,9 @@ export default function App() {
         onSelectWorld={handleOpenWorld}
         onChangeView={handleChangeView}
         onSignOut={handleSignOut}
+        isMobile={isMobile}
+        isOpen={menuOpen}
+        onClose={() => setMenuOpen(false)}
       />
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, overflow: "hidden" }}>
@@ -90,6 +96,8 @@ export default function App() {
           onGoToDashboard={handleGoToDashboard}
           searchQuery={searchQuery}
           onSearch={setSearchQuery}
+          isMobile={isMobile}
+          onOpenMenu={() => setMenuOpen(true)}
         />
 
         <div style={{ flex: 1, overflow: "auto" }}>

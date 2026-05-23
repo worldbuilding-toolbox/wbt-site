@@ -1,6 +1,7 @@
 "use client";
 import React from "react";
 import { Icon, Logo, IconButton, Avatar } from "./Primitives";
+import { useIsMobile } from "./hooks";
 import type { User, World } from "./store";
 
 type WorldView = "timeline" | "articles" | "ideas" | "help";
@@ -18,6 +19,7 @@ const WORLD_SECTIONS: { key: WorldView; icon: string; label: string }[] = [
 
 export function Sidebar({
   user, worlds, world, view, onGoToDashboard, onSelectWorld, onChangeView, onSignOut,
+  isMobile = false, isOpen = true, onClose,
 }: {
   user: User;
   worlds: World[];
@@ -27,27 +29,53 @@ export function Sidebar({
   onSelectWorld: (id: string) => void;
   onChangeView: (v: WorldView) => void;
   onSignOut: () => void;
+  isMobile?: boolean;
+  isOpen?: boolean;
+  onClose?: () => void;
 }) {
-  return (
+  // Close drawer after navigation on mobile
+  const wrap = (fn: () => void) => () => { fn(); if (isMobile) onClose?.(); };
+
+  const aside = (
     <aside style={{
-      width: 244,
+      width: isMobile ? "min(280px, 84vw)" : 244,
       flexShrink: 0,
       borderRight: "1px solid var(--border)",
       background: "var(--bg-sunken)",
       display: "flex",
       flexDirection: "column",
-      height: "100vh",
-      position: "sticky",
-      top: 0,
+      height: "100%",
+      ...(isMobile
+        ? {
+            position: "fixed",
+            top: 0,
+            left: 0,
+            bottom: 0,
+            zIndex: 60,
+            transform: isOpen ? "translateX(0)" : "translateX(-100%)",
+            transition: "transform 220ms var(--ease-out)",
+            boxShadow: isOpen ? "0 0 32px rgba(0,0,0,0.6)" : "none",
+          }
+        : {
+            position: "sticky",
+            top: 0,
+          }),
     }}>
       {/* Logo */}
-      <div style={{ padding: "18px 16px", borderBottom: "1px solid var(--border)" }}>
+      <div style={{
+        padding: "18px 16px",
+        borderBottom: "1px solid var(--border)",
+        display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
+      }}>
         <button
-          onClick={onGoToDashboard}
+          onClick={wrap(onGoToDashboard)}
           style={{ background: "transparent", border: "none", padding: 0, cursor: "pointer" }}
         >
           <Logo size="md" />
         </button>
+        {isMobile && onClose && (
+          <IconButton icon="x" label="Close menu" onClick={onClose} />
+        )}
       </div>
 
       {/* Worlds list */}
@@ -58,13 +86,13 @@ export function Sidebar({
             <SidebarItem
               key={w.id}
               active={world?.id === w.id}
-              onClick={() => onSelectWorld(w.id)}
+              onClick={wrap(() => onSelectWorld(w.id))}
             >
               <span style={{ width: 8, height: 8, borderRadius: "50%", background: w.color, flexShrink: 0 }} />
               <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{w.name}</span>
             </SidebarItem>
           ))}
-          <SidebarItem active={false} onClick={onGoToDashboard} muted>
+          <SidebarItem active={false} onClick={wrap(onGoToDashboard)} muted>
             <Icon name="plus" size={13} />
             <span>New world</span>
           </SidebarItem>
@@ -81,7 +109,7 @@ export function Sidebar({
                 key={s.key}
                 active={view === s.key}
                 activeBar
-                onClick={() => onChangeView(s.key)}
+                onClick={wrap(() => onChangeView(s.key))}
               >
                 <Icon name={s.icon} size={14} />
                 <span>{s.label}</span>
@@ -104,12 +132,31 @@ export function Sidebar({
             {user.name}
           </span>
         </div>
-        <SidebarItem active={false} muted onClick={onSignOut}>
+        <SidebarItem active={false} muted onClick={wrap(onSignOut)}>
           <Icon name="logout" size={13} />
           <span>Sign out</span>
         </SidebarItem>
       </div>
     </aside>
+  );
+
+  if (!isMobile) return aside;
+
+  return (
+    <>
+      {/* Backdrop */}
+      {isOpen && (
+        <div
+          onClick={onClose}
+          style={{
+            position: "fixed", inset: 0, zIndex: 55,
+            background: "var(--bg-overlay)",
+            animation: "fade-in 0.2s var(--ease-out)",
+          }}
+        />
+      )}
+      {aside}
+    </>
   );
 }
 
@@ -142,7 +189,7 @@ function SidebarItem({
       onMouseLeave={() => setHover(false)}
       style={{
         display: "flex", alignItems: "center", gap: 9,
-        padding: "7px 10px",
+        padding: "9px 10px",
         background: active ? "var(--bg-hover)" : hover ? "rgba(255,255,255,0.03)" : "transparent",
         border: "none",
         borderLeft: activeBar ? (active ? "2px solid var(--accent)" : "2px solid transparent") : "none",
@@ -169,14 +216,96 @@ function SidebarItem({
 
 export function TopBar({
   world, view, onGoToDashboard, searchQuery, onSearch,
+  isMobile = false, onOpenMenu,
 }: {
   world: World | null;
   view: WorldView;
   onGoToDashboard: () => void;
   searchQuery: string;
   onSearch: (q: string) => void;
+  isMobile?: boolean;
+  onOpenMenu?: () => void;
 }) {
   const viewLabel = ({ timeline: "Timeline", articles: "Articles", ideas: "Ideas", help: "Help" })[view] || "";
+  const [searchOpen, setSearchOpen] = React.useState(false);
+
+  // Mobile: show search as an expandable row beneath the bar
+  if (isMobile) {
+    return (
+      <div style={{
+        position: "sticky", top: 0, zIndex: 10,
+        background: "var(--bg)",
+        borderBottom: "1px solid var(--border)",
+      }}>
+        <div style={{
+          height: 52,
+          display: "flex", alignItems: "center", gap: 8, padding: "0 10px",
+        }}>
+          <IconButton icon="menu-2" label="Open menu" onClick={onOpenMenu} />
+          <div style={{
+            flex: 1, minWidth: 0,
+            display: "flex", alignItems: "center", gap: 6,
+            fontFamily: "var(--font-mono)", fontSize: 11,
+            color: "var(--fg-secondary)", textTransform: "uppercase", letterSpacing: "0.08em",
+            overflow: "hidden",
+          }}>
+            {world ? (
+              <>
+                <span style={{ width: 7, height: 7, borderRadius: "50%", background: world.color, flexShrink: 0 }} />
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--fg)" }}>
+                  {world.name}
+                </span>
+                <Icon name="chevron-right" size={11} style={{ color: "var(--fg-muted)", flexShrink: 0 }} />
+                <span style={{ color: "var(--accent)", flexShrink: 0 }}>{viewLabel}</span>
+              </>
+            ) : (
+              <button
+                onClick={onGoToDashboard}
+                style={{
+                  background: "transparent", border: "none", padding: 0,
+                  fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--fg-secondary)",
+                  textTransform: "uppercase", letterSpacing: "0.08em", cursor: "pointer",
+                }}
+              >
+                Worlds
+              </button>
+            )}
+          </div>
+          <IconButton icon={searchOpen ? "x" : "search"} label="Search" onClick={() => setSearchOpen(!searchOpen)} />
+        </div>
+        {searchOpen && (
+          <div style={{
+            padding: "8px 10px 10px",
+            borderTop: "1px solid var(--border)",
+            display: "flex", alignItems: "center", gap: 8,
+            background: "var(--bg-elevated)",
+            animation: "fade-in 0.18s var(--ease-out)",
+          }}>
+            <div style={{
+              flex: 1, display: "flex", alignItems: "center", gap: 8,
+              padding: "8px 12px",
+              background: "var(--bg)", border: "1px solid var(--border)",
+              borderRadius: "var(--radius-md)", color: "var(--fg-muted)",
+            }}>
+              <Icon name="search" size={13} />
+              <input
+                autoFocus
+                placeholder="QUERY..."
+                value={searchQuery}
+                onChange={(e) => onSearch(e.target.value)}
+                style={{
+                  background: "transparent", border: "none", outline: "none",
+                  color: "var(--fg)", fontFamily: "var(--font-mono)", fontSize: 11,
+                  flex: 1, textTransform: "uppercase", letterSpacing: "0.08em",
+                  width: "100%", minWidth: 0,
+                }}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div style={{

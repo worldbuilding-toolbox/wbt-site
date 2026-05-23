@@ -1,33 +1,66 @@
 "use client";
 import React from "react";
 import { Logo, ConstellationBackdrop, Button, Input, Field } from "./Primitives";
+import { useIsMobile } from "./hooks";
 import { signIn, signUp, type User } from "./store";
 
 type AuthView = "login" | "signup";
 
 export function AuthScreen({ onAuth }: { onAuth: (user: User) => void }) {
   const [view, setView] = React.useState<AuthView>("login");
+  const isMobile = useIsMobile();
 
   return (
     <div style={{
       display: "grid",
-      gridTemplateColumns: "minmax(380px, 1fr) minmax(0, 1.1fr)",
-      height: "100vh",
+      gridTemplateColumns: isMobile ? "1fr" : "minmax(380px, 1fr) minmax(0, 1.1fr)",
+      gridTemplateRows: isMobile ? "auto 1fr" : "1fr",
+      minHeight: "100vh",
       background: "var(--bg)",
     }}>
-      {/* Left — form column */}
+      {/* Mobile-only compact brand header */}
+      {isMobile && (
+        <div style={{
+          position: "relative",
+          background: "linear-gradient(180deg, var(--space-850) 0%, var(--space-950) 100%)",
+          overflow: "hidden",
+          padding: "28px 24px 32px",
+          borderBottom: "1px solid var(--border)",
+        }}>
+          <ConstellationBackdrop />
+          <div style={{ position: "relative", zIndex: 1 }}>
+            <Logo size="md" />
+            <blockquote style={{
+              margin: "20px 0 0", fontFamily: "var(--font-serif)",
+              fontSize: 15, color: "var(--fg-secondary)",
+              fontStyle: "italic", lineHeight: 1.55,
+            }}>
+              "Build only what you need for the next chapter."
+            </blockquote>
+          </div>
+          <div style={{
+            position: "absolute", inset: 0,
+            backgroundImage: "var(--grain)",
+            pointerEvents: "none", opacity: 0.6,
+          }} />
+        </div>
+      )}
+
+      {/* Form column */}
       <div style={{
         display: "flex",
         flexDirection: "column",
-        padding: "48px",
-        justifyContent: "center",
-        borderRight: "1px solid var(--border)",
-        maxWidth: 560,
+        padding: isMobile ? "28px 22px 32px" : "48px",
+        justifyContent: isMobile ? "flex-start" : "center",
+        borderRight: isMobile ? "none" : "1px solid var(--border)",
+        maxWidth: isMobile ? "100%" : 560,
         width: "100%",
       }}>
-        <div style={{ marginBottom: 48 }}>
-          <Logo size="md" />
-        </div>
+        {!isMobile && (
+          <div style={{ marginBottom: 48 }}>
+            <Logo size="md" />
+          </div>
+        )}
 
         {view === "login" ? (
           <LoginForm onAuth={onAuth} onSwitchToSignup={() => setView("signup")} />
@@ -36,8 +69,8 @@ export function AuthScreen({ onAuth }: { onAuth: (user: User) => void }) {
         )}
 
         <div style={{
-          marginTop: "auto",
-          paddingTop: 48,
+          marginTop: isMobile ? 32 : "auto",
+          paddingTop: isMobile ? 0 : 48,
           fontFamily: "var(--font-mono)",
           fontSize: 10,
           color: "var(--fg-muted)",
@@ -48,61 +81,63 @@ export function AuthScreen({ onAuth }: { onAuth: (user: User) => void }) {
         </div>
       </div>
 
-      {/* Right — brand panel */}
-      <div style={{
-        position: "relative",
-        background: "linear-gradient(180deg, var(--space-850) 0%, var(--space-950) 100%)",
-        overflow: "hidden",
-        display: "flex",
-        flexDirection: "column",
-        justifyContent: "flex-end",
-        padding: "48px 56px",
-      }}>
-        <ConstellationBackdrop />
-
-        {/* Bottom gradient protection */}
+      {/* Right — brand panel (desktop only) */}
+      {!isMobile && (
         <div style={{
-          position: "absolute",
-          bottom: 0, left: 0, right: 0,
-          height: "55%",
-          background: "linear-gradient(to top, var(--space-950) 0%, transparent 100%)",
-          pointerEvents: "none",
-        }} />
+          position: "relative",
+          background: "linear-gradient(180deg, var(--space-850) 0%, var(--space-950) 100%)",
+          overflow: "hidden",
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "flex-end",
+          padding: "48px 56px",
+        }}>
+          <ConstellationBackdrop />
 
-        {/* Foreground text */}
-        <div style={{ position: "relative", zIndex: 1 }}>
+          {/* Bottom gradient protection */}
           <div style={{
-            fontFamily: "var(--font-mono)", fontSize: 10,
-            color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.14em",
-            marginBottom: 16,
-          }}>
-            From the help library
-          </div>
-          <blockquote style={{
-            margin: 0, fontFamily: "var(--font-serif)",
-            fontSize: 20, color: "var(--fg-secondary)",
-            fontStyle: "italic", lineHeight: 1.6,
-          }}>
-            "Build only what you need for the next chapter.
-            The Toolbox will keep your blank sections forever."
-          </blockquote>
-          <footer style={{
-            marginTop: 12, fontFamily: "var(--font-mono)",
-            fontSize: 11, color: "var(--fg-muted)",
-            textTransform: "uppercase", letterSpacing: "0.12em",
-          }}>
-            — Help & how-to: Designing your first world
-          </footer>
-        </div>
+            position: "absolute",
+            bottom: 0, left: 0, right: 0,
+            height: "55%",
+            background: "linear-gradient(to top, var(--space-950) 0%, transparent 100%)",
+            pointerEvents: "none",
+          }} />
 
-        {/* Scan-line overlay */}
-        <div style={{
-          position: "absolute", inset: 0,
-          backgroundImage: "var(--grain)",
-          pointerEvents: "none",
-          opacity: 0.6,
-        }} />
-      </div>
+          {/* Foreground text */}
+          <div style={{ position: "relative", zIndex: 1 }}>
+            <div style={{
+              fontFamily: "var(--font-mono)", fontSize: 10,
+              color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.14em",
+              marginBottom: 16,
+            }}>
+              From the help library
+            </div>
+            <blockquote style={{
+              margin: 0, fontFamily: "var(--font-serif)",
+              fontSize: 20, color: "var(--fg-secondary)",
+              fontStyle: "italic", lineHeight: 1.6,
+            }}>
+              "Build only what you need for the next chapter.
+              The Toolbox will keep your blank sections forever."
+            </blockquote>
+            <footer style={{
+              marginTop: 12, fontFamily: "var(--font-mono)",
+              fontSize: 11, color: "var(--fg-muted)",
+              textTransform: "uppercase", letterSpacing: "0.12em",
+            }}>
+              — Help & how-to: Designing your first world
+            </footer>
+          </div>
+
+          {/* Scan-line overlay */}
+          <div style={{
+            position: "absolute", inset: 0,
+            backgroundImage: "var(--grain)",
+            pointerEvents: "none",
+            opacity: 0.6,
+          }} />
+        </div>
+      )}
     </div>
   );
 }

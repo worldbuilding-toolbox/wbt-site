@@ -1,6 +1,7 @@
 "use client";
 import React from "react";
 import { Button, IconButton, Icon, Tag, Modal, Input, Field, Textarea } from "./Primitives";
+import { useIsMobile } from "./hooks";
 
 // ============================================================================
 // Built-in help articles
@@ -204,6 +205,8 @@ export function Help({ world }: { world: { id: string } }) {
   const [userArticles, setUserArticles] = React.useState<UserArticle[]>([]);
   const [showCreate, setShowCreate] = React.useState(false);
   const [editingUser, setEditingUser] = React.useState<string | null>(null);
+  const [mobileShowList, setMobileShowList] = React.useState(false);
+  const isMobile = useIsMobile();
 
   // Load user-created help articles from localStorage
   React.useEffect(() => {
@@ -230,24 +233,38 @@ export function Help({ world }: { world: { id: string } }) {
     setActiveId(copy.id);
   };
 
+  const topBarHeight = isMobile ? 52 : 56;
+  const showList = !isMobile || mobileShowList;
+  const showBody = !isMobile || !mobileShowList;
+  const selectArticle = (id: string) => {
+    setActiveId(id);
+    if (isMobile) setMobileShowList(false);
+  };
+
   return (
-    <div style={{ display: "flex", height: "calc(100vh - 56px)" }}>
+    <div style={{ display: "flex", height: `calc(100vh - ${topBarHeight}px)` }}>
       {/* Help sidebar */}
-      <HelpSidebar
-        categories={CATEGORIES}
-        userArticles={userArticles}
-        activeId={activeId}
-        onSelect={setActiveId}
-        onCreateNew={() => setShowCreate(true)}
-      />
+      {showList && (
+        <HelpSidebar
+          categories={CATEGORIES}
+          userArticles={userArticles}
+          activeId={activeId}
+          onSelect={selectArticle}
+          onCreateNew={() => setShowCreate(true)}
+          isMobile={isMobile}
+        />
+      )}
 
       {/* Article body */}
+      {showBody && (
       <div style={{ flex: 1, overflow: "auto" }}>
         {activeArticle ? (
           <HelpArticleBody
             article={activeArticle as UserArticle}
             allArticles={{ ...BUILT_IN, ...Object.fromEntries(userArticles.map((a) => [a.id, a])) }}
-            onSelect={setActiveId}
+            onSelect={selectArticle}
+            isMobile={isMobile}
+            onBackToList={isMobile ? () => setMobileShowList(true) : undefined}
             onCopyToWorld={!('isUserCreated' in activeArticle && activeArticle.isUserCreated) ? () => handleCopyToWorld(activeArticle) : undefined}
             onEdit={('isUserCreated' in activeArticle && activeArticle.isUserCreated) ? () => setEditingUser(activeArticle.id) : undefined}
             onDelete={('isUserCreated' in activeArticle && activeArticle.isUserCreated) ? () => {
@@ -261,6 +278,7 @@ export function Help({ world }: { world: { id: string } }) {
           </div>
         )}
       </div>
+      )}
 
       {showCreate && (
         <CreateHelpArticleModal
@@ -292,15 +310,22 @@ export function Help({ world }: { world: { id: string } }) {
 // Help sidebar
 // ============================================================================
 
-function HelpSidebar({ categories, userArticles, activeId, onSelect, onCreateNew }: {
+function HelpSidebar({ categories, userArticles, activeId, onSelect, onCreateNew, isMobile }: {
   categories: typeof CATEGORIES;
   userArticles: UserArticle[];
   activeId: string;
   onSelect: (id: string) => void;
   onCreateNew: () => void;
+  isMobile?: boolean;
 }) {
   return (
-    <aside style={{ width: 280, flexShrink: 0, borderRight: "1px solid var(--border)", background: "var(--bg-sunken)", overflow: "auto" }}>
+    <aside style={{
+      width: isMobile ? "100%" : 280,
+      flexShrink: 0,
+      borderRight: isMobile ? "none" : "1px solid var(--border)",
+      background: "var(--bg-sunken)",
+      overflow: "auto",
+    }}>
       <div style={{ padding: "18px 16px 14px", borderBottom: "1px solid var(--border)" }}>
         <div style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.14em", marginBottom: 6 }}>
           Library
@@ -375,16 +400,34 @@ function HelpSidebarItem({ title, active, onClick }: { title: string; active: bo
 // Help article body
 // ============================================================================
 
-function HelpArticleBody({ article, allArticles, onSelect, onCopyToWorld, onEdit, onDelete }: {
+function HelpArticleBody({ article, allArticles, onSelect, onCopyToWorld, onEdit, onDelete, isMobile, onBackToList }: {
   article: UserArticle;
   allArticles: Record<string, HelpArticle>;
   onSelect: (id: string) => void;
   onCopyToWorld?: () => void;
   onEdit?: () => void;
   onDelete?: () => void;
+  isMobile?: boolean;
+  onBackToList?: () => void;
 }) {
   return (
-    <article style={{ padding: "48px 56px 96px", maxWidth: 760, margin: "0 auto" }}>
+    <article style={{ padding: isMobile ? "20px 16px 64px" : "48px 56px 96px", maxWidth: 760, margin: "0 auto" }}>
+      {onBackToList && (
+        <button
+          onClick={onBackToList}
+          style={{
+            display: "inline-flex", alignItems: "center", gap: 6,
+            background: "transparent", border: "none", padding: 0,
+            cursor: "pointer", color: "var(--accent)",
+            fontFamily: "var(--font-mono)", fontSize: 11,
+            textTransform: "uppercase", letterSpacing: "0.12em",
+            marginBottom: 14,
+          }}
+        >
+          <Icon name="chevron-left" size={13} />
+          All guides
+        </button>
+      )}
       {/* Category kicker */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, fontFamily: "var(--font-mono)", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.14em", color: "var(--fg-muted)" }}>
         <Icon name={article.icon} size={12} style={{ color: "var(--accent)" }} />
@@ -393,16 +436,24 @@ function HelpArticleBody({ article, allArticles, onSelect, onCopyToWorld, onEdit
         <span>{article.minutes} min read</span>
       </div>
 
-      <h1 style={{ fontFamily: "var(--font-sans)", fontSize: 34, fontWeight: 500, letterSpacing: "-0.02em", color: "var(--fg)", lineHeight: 1.1 }}>
+      <h1 style={{ fontFamily: "var(--font-sans)", fontSize: isMobile ? 26 : 34, fontWeight: 500, letterSpacing: "-0.02em", color: "var(--fg)", lineHeight: 1.1 }}>
         {article.title}
       </h1>
-      <p style={{ fontFamily: "var(--font-sans)", fontSize: 18, color: "var(--fg-secondary)", marginTop: 14, lineHeight: 1.5, fontWeight: 300 }}>
+      <p style={{ fontFamily: "var(--font-sans)", fontSize: isMobile ? 15 : 18, color: "var(--fg-secondary)", marginTop: 14, lineHeight: 1.5, fontWeight: 300 }}>
         {article.lede}
       </p>
 
       {/* Template / editable banner */}
       {article.editable && (
-        <div style={{ marginTop: 28, padding: "12px 16px", background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: "var(--radius-md)", display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{
+          marginTop: 28, padding: "12px 16px",
+          background: "var(--bg-elevated)", border: "1px solid var(--border)",
+          borderRadius: "var(--radius-md)",
+          display: "flex",
+          flexDirection: isMobile ? "column" : "row",
+          alignItems: isMobile ? "flex-start" : "center",
+          gap: 12,
+        }}>
           <Icon name="settings" size={16} style={{ color: "var(--accent)", flexShrink: 0 }} />
           <div style={{ flex: 1 }}>
             <div style={{ fontFamily: "var(--font-sans)", fontSize: 14, color: "var(--fg)", fontWeight: 500 }}>

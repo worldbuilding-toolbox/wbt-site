@@ -1,6 +1,7 @@
 "use client";
 import React from "react";
 import { Button, IconButton, Icon, Tag, Modal, Input, Field } from "./Primitives";
+import { useIsMobile } from "./hooks";
 import { getIdeas, saveIdeas, createIdea, getArticles, type World, type Idea } from "./store";
 
 export function IdeaInbox({ world, searchQuery }: { world: World; searchQuery: string }) {
@@ -10,6 +11,7 @@ export function IdeaInbox({ world, searchQuery }: { world: World; searchQuery: s
   const [selectedIdea, setSelectedIdea] = React.useState<Idea | null>(null);
   const [showFileIdea, setShowFileIdea] = React.useState<Idea | null>(null);
   const fileRef = React.useRef<HTMLInputElement>(null);
+  const isMobile = useIsMobile();
 
   const reload = () => setIdeas(getIdeas(world.id));
 
@@ -55,24 +57,39 @@ export function IdeaInbox({ world, searchQuery }: { world: World; searchQuery: s
     reader.readAsDataURL(file);
   };
 
+  const topBarHeight = isMobile ? 52 : 56;
+
   return (
-    <div style={{ display: "flex", height: "calc(100vh - 56px)" }}>
+    <div style={{ display: "flex", height: `calc(100vh - ${topBarHeight}px)` }}>
       {/* Main inbox */}
-      <div style={{ flex: 1, overflow: "auto", padding: "32px 40px 80px" }}>
+      <div style={{ flex: 1, overflow: "auto", padding: isMobile ? "20px 16px 64px" : "32px 40px 80px" }}>
         {/* Header */}
-        <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 28 }}>
+        <div style={{
+          display: "flex",
+          flexDirection: isMobile ? "column" : "row",
+          alignItems: isMobile ? "stretch" : "flex-end",
+          justifyContent: "space-between",
+          gap: isMobile ? 14 : 0,
+          marginBottom: isMobile ? 20 : 28,
+        }}>
           <div>
             <div style={{ fontFamily: "var(--font-mono)", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.14em", color: "var(--accent)", fontWeight: 500, marginBottom: 8 }}>
               Idea inbox · {unfiled.length} unfiled
             </div>
-            <h1 style={{ fontFamily: "var(--font-sans)", fontSize: 30, fontWeight: 500, letterSpacing: "-0.02em", color: "var(--fg)" }}>
+            <h1 style={{ fontFamily: "var(--font-sans)", fontSize: isMobile ? 24 : 30, fontWeight: 500, letterSpacing: "-0.02em", color: "var(--fg)" }}>
               Sparks
             </h1>
-            <p style={{ fontFamily: "var(--font-sans)", fontSize: 15, color: "var(--fg-secondary)", marginTop: 8, maxWidth: "56ch", lineHeight: 1.6 }}>
+            <p style={{ fontFamily: "var(--font-sans)", fontSize: isMobile ? 14 : 15, color: "var(--fg-secondary)", marginTop: 8, maxWidth: "56ch", lineHeight: 1.6 }}>
               Capture an idea fast. Each idea keeps its main picture, title, and a short note. Slot it into a section later — or never.
             </p>
           </div>
-          <Button variant="primary" icon="plus" size="lg" onClick={() => setCapturing(true)}>
+          <Button
+            variant="primary"
+            icon="plus"
+            size={isMobile ? "md" : "lg"}
+            onClick={() => setCapturing(true)}
+            style={isMobile ? { alignSelf: "stretch", justifyContent: "center" } : undefined}
+          >
             Capture
           </Button>
         </div>
@@ -156,13 +173,17 @@ function CaptureComposer({ draft, onChange, onCapture, onCancel, onImageClick }:
   onChange: (d: { title: string; note: string; imageUrl: string }) => void;
   onCapture: () => void; onCancel: () => void; onImageClick: () => void;
 }) {
+  const isMobile = useIsMobile();
   return (
     <div style={{
       background: "var(--bg-elevated)",
       border: "1px solid var(--accent)",
       borderRadius: "var(--radius-md)",
-      padding: 20, marginBottom: 32,
-      display: "flex", gap: 16,
+      padding: isMobile ? 14 : 20,
+      marginBottom: isMobile ? 24 : 32,
+      display: "flex",
+      flexDirection: isMobile ? "column" : "row",
+      gap: isMobile ? 12 : 16,
       boxShadow: "0 0 24px var(--cyan-glow)",
     }}>
       {/* Image placeholder */}
@@ -214,11 +235,13 @@ function CaptureComposer({ draft, onChange, onCapture, onCancel, onImageClick }:
             resize: "none", lineHeight: 1.5,
           }}
         />
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
           <Tag tone="warning">Unfiled</Tag>
-          <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--fg-muted)", textTransform: "uppercase", letterSpacing: "0.1em" }}>
-            Slot into a section later.
-          </span>
+          {!isMobile && (
+            <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--fg-muted)", textTransform: "uppercase", letterSpacing: "0.1em" }}>
+              Slot into a section later.
+            </span>
+          )}
           <div style={{ flex: 1 }} />
           <Button variant="ghost" onClick={onCancel}>Cancel</Button>
           <Button variant="primary" icon="device-floppy" onClick={onCapture}>Capture</Button>
@@ -364,6 +387,7 @@ function IdeaInspector({ idea, onClose, onFile, onUnfile, onDelete, onUpdate }: 
   const [editing, setEditing] = React.useState(false);
   const [draft, setDraft] = React.useState(idea);
   const fileRef = React.useRef<HTMLInputElement>(null);
+  const isMobile = useIsMobile();
 
   React.useEffect(() => { setDraft(idea); setEditing(false); }, [idea.id]);
 
@@ -375,8 +399,16 @@ function IdeaInspector({ idea, onClose, onFile, onUnfile, onDelete, onUpdate }: 
     reader.readAsDataURL(file);
   };
 
-  return (
-    <div style={{ width: 320, flexShrink: 0, borderLeft: "1px solid var(--border)", background: "var(--bg-elevated)", display: "flex", flexDirection: "column", height: "100%", animation: "fade-in 0.22s" }}>
+  const panel = (
+    <div style={{
+      width: isMobile ? "100%" : 320,
+      flexShrink: 0,
+      borderLeft: isMobile ? "none" : "1px solid var(--border)",
+      background: "var(--bg-elevated)",
+      display: "flex", flexDirection: "column",
+      height: "100%",
+      animation: "fade-in 0.22s",
+    }}>
       <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 8 }}>
         <Tag tone={idea.filed ? "success" : "warning"}>{idea.filed ? idea.section || "Filed" : "Unfiled"}</Tag>
         <span style={{ fontFamily: "var(--font-mono)", fontSize: 9, color: "var(--fg-muted)", textTransform: "uppercase", letterSpacing: "0.12em" }}>{idea.id}</span>
@@ -446,6 +478,35 @@ function IdeaInspector({ idea, onClose, onFile, onUnfile, onDelete, onUpdate }: 
             <Button variant="secondary" size="sm" icon="pencil" onClick={() => setEditing(true)} style={{ flex: 1, justifyContent: "center" }}>Edit</Button>
           </>
         )}
+      </div>
+    </div>
+  );
+
+  if (!isMobile) return panel;
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed", inset: 0, zIndex: 70,
+        background: "var(--bg-overlay)",
+        display: "flex", flexDirection: "column", justifyContent: "flex-end",
+        animation: "fade-in 0.18s var(--ease-out)",
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: "var(--bg-elevated)",
+          borderTop: "1px solid var(--border-strong)",
+          borderTopLeftRadius: 12,
+          borderTopRightRadius: 12,
+          maxHeight: "88vh",
+          display: "flex", flexDirection: "column",
+          overflow: "hidden",
+        }}
+      >
+        {panel}
       </div>
     </div>
   );

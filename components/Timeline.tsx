@@ -1,6 +1,7 @@
 "use client";
 import React from "react";
 import { Button, IconButton, Icon, Tag, Modal, Input, Field, Select } from "./Primitives";
+import { useIsMobile } from "./hooks";
 import {
   getEras, saveEras, getEvents, saveEvents, createEra, createEvent, updateWorld,
   type World, type Era, type TimelineEvent,
@@ -16,6 +17,7 @@ export function Timeline({ world, onWorldChange }: { world: World; onWorldChange
   const [showAddEvent, setShowAddEvent] = React.useState(false);
   const [showSettings, setShowSettings] = React.useState(false);
   const [editEraId, setEditEraId] = React.useState<string | null>(null);
+  const isMobile = useIsMobile();
 
   const reload = () => {
     setEras(getEras(world.id));
@@ -54,19 +56,21 @@ export function Timeline({ world, onWorldChange }: { world: World; onWorldChange
 
   const pct = (year: number) => `${((year - minYear) / span) * 100}%`;
 
+  const topBarHeight = isMobile ? 52 : 56;
+
   return (
-    <div style={{ display: "flex", height: "calc(100vh - 56px)" }}>
+    <div style={{ display: "flex", height: `calc(100vh - ${topBarHeight}px)` }}>
       {/* Main timeline area */}
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "auto", minWidth: 0 }}>
         {/* Toolbar */}
         <div style={{
           position: "sticky", top: 0, zIndex: 5,
           background: "var(--bg)", borderBottom: "1px solid var(--border)",
-          display: "flex", alignItems: "center", gap: 10, padding: "10px 24px",
+          display: "flex", alignItems: "center", gap: isMobile ? 8 : 10, padding: isMobile ? "10px 14px" : "10px 24px",
           flexWrap: "wrap",
         }}>
-          <div>
-            <h2 style={{ fontFamily: "var(--font-sans)", fontSize: 18, fontWeight: 500, color: "var(--fg)", letterSpacing: "-0.01em" }}>
+          <div style={{ flex: isMobile ? "1 1 100%" : "0 0 auto" }}>
+            <h2 style={{ fontFamily: "var(--font-sans)", fontSize: isMobile ? 16 : 18, fontWeight: 500, color: "var(--fg)", letterSpacing: "-0.01em" }}>
               {world.name} · Timeline
             </h2>
             {eras.length > 0 && (
@@ -75,21 +79,32 @@ export function Timeline({ world, onWorldChange }: { world: World; onWorldChange
               </div>
             )}
           </div>
-          <Tag tone="success" style={{ marginLeft: 8 }}>Auto-saved</Tag>
+          {!isMobile && <Tag tone="success" style={{ marginLeft: 8 }}>Auto-saved</Tag>}
           <div style={{ flex: 1 }} />
           <IconButton icon="settings" label="Timeline settings" onClick={() => setShowSettings(true)} />
           <Button variant="secondary" icon="plus" size="sm" onClick={() => setShowAddEra(true)}>
-            Add {world.eraLabel || "Era"}
+            {isMobile ? (world.eraLabel || "Era") : `Add ${world.eraLabel || "Era"}`}
           </Button>
           <Button variant="primary" icon="plus" size="sm" onClick={() => setShowAddEvent(true)}>
-            Add event
+            {isMobile ? "Event" : "Add event"}
           </Button>
         </div>
 
         {eras.length === 0 && events.length === 0 ? (
           <EmptyTimeline eraLabel={world.eraLabel} onAddEra={() => setShowAddEra(true)} />
         ) : (
-          <div style={{ padding: "32px 24px 96px", minWidth: 800 }}>
+          <div style={{
+            padding: isMobile ? "20px 16px 80px" : "32px 24px 96px",
+            minWidth: isMobile ? undefined : 800,
+          }}>
+            <div style={{
+              overflowX: isMobile ? "auto" : "visible",
+              marginLeft: isMobile ? -16 : 0,
+              marginRight: isMobile ? -16 : 0,
+              paddingLeft: isMobile ? 16 : 0,
+              paddingRight: isMobile ? 16 : 0,
+            }}>
+            <div style={{ minWidth: isMobile ? 668 : "auto" }}>
             {/* Era bands */}
             {eras.length > 0 && (
               <div style={{ marginBottom: 16 }}>
@@ -238,6 +253,8 @@ export function Timeline({ world, onWorldChange }: { world: World; onWorldChange
                   );
                 })}
               </div>
+            </div>
+            </div>
             </div>
 
             {/* Events list */}
@@ -402,6 +419,7 @@ function EventInspector({ event, world, eras, formatEraYear, onClose, onDelete, 
   const [draft, setDraft] = React.useState(event);
   const era = eras.find((e) => e.id === event.eraId);
   const draftEra = eras.find((e) => e.id === draft.eraId);
+  const isMobile = useIsMobile();
 
   React.useEffect(() => { setDraft(event); setEditing(false); }, [event.id]);
 
@@ -413,10 +431,11 @@ function EventInspector({ event, world, eras, formatEraYear, onClose, onDelete, 
     ? `${draft.eraYear} ${draftEra.shortLabel || draftEra.name}`
     : null;
 
-  return (
+  const panel = (
     <div style={{
-      width: 320, flexShrink: 0,
-      borderLeft: "1px solid var(--border)",
+      width: isMobile ? "100%" : 320,
+      flexShrink: 0,
+      borderLeft: isMobile ? "none" : "1px solid var(--border)",
       background: "var(--bg-elevated)",
       display: "flex", flexDirection: "column",
       height: "100%",
@@ -541,6 +560,35 @@ function EventInspector({ event, world, eras, formatEraYear, onClose, onDelete, 
             <Button variant="secondary" size="sm" icon="pencil" style={{ flex: 1, justifyContent: "center" }} onClick={() => setEditing(true)}>Edit</Button>
           </>
         )}
+      </div>
+    </div>
+  );
+
+  if (!isMobile) return panel;
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed", inset: 0, zIndex: 70,
+        background: "var(--bg-overlay)",
+        display: "flex", flexDirection: "column", justifyContent: "flex-end",
+        animation: "fade-in 0.18s var(--ease-out)",
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: "var(--bg-elevated)",
+          borderTop: "1px solid var(--border-strong)",
+          borderTopLeftRadius: 12,
+          borderTopRightRadius: 12,
+          maxHeight: "85vh",
+          display: "flex", flexDirection: "column",
+          overflow: "hidden",
+        }}
+      >
+        {panel}
       </div>
     </div>
   );
