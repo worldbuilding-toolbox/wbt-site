@@ -93,6 +93,27 @@ export type Idea = {
   section?: string;
 };
 
+export type HelpBlock =
+  | { type: "h2"; text: string }
+  | { type: "p"; text: string }
+  | { type: "list"; items: string[] }
+  | { type: "video"; title: string; url?: string; source: string }
+  | { type: "image"; caption: string };
+
+export type HelpArticle = {
+  id: string;
+  title: string;
+  category: string;
+  icon: string;
+  minutes: number;
+  lede: string;
+  editable: boolean;
+  body: HelpBlock[];
+  next: string[];
+};
+
+export type UserHelpArticle = HelpArticle & { isUserCreated?: boolean };
+
 // ============================================================================
 // Storage helpers
 // ============================================================================
@@ -308,6 +329,18 @@ export function createIdea(worldId: string, title: string, note: string, imageUr
   };
   save(`wbt:ideas:${worldId}`, [idea, ...ideas]);
   return idea;
+}
+
+// ============================================================================
+// Help articles (user-created)
+// ============================================================================
+
+export function getHelpArticles(worldId: string): UserHelpArticle[] {
+  return load<UserHelpArticle[]>(`wbt:help:${worldId}`, []);
+}
+
+export function saveHelpArticles(worldId: string, articles: UserHelpArticle[]) {
+  save(`wbt:help:${worldId}`, articles);
 }
 
 // ============================================================================

@@ -2,29 +2,14 @@
 import React from "react";
 import { Button, IconButton, Icon, Tag, Modal, Input, Field, Textarea } from "./Primitives";
 import { useIsMobile } from "./hooks";
+import {
+  getHelpArticles, saveHelpArticles,
+  type HelpArticle, type HelpBlock, type UserHelpArticle,
+} from "./store";
 
 // ============================================================================
 // Built-in help articles
 // ============================================================================
-
-type HelpArticle = {
-  id: string;
-  title: string;
-  category: string;
-  icon: string;
-  minutes: number;
-  lede: string;
-  editable: boolean;
-  body: HelpBlock[];
-  next: string[];
-};
-
-type HelpBlock =
-  | { type: "h2"; text: string }
-  | { type: "p"; text: string }
-  | { type: "list"; items: string[] }
-  | { type: "video"; title: string; url?: string; source: string }
-  | { type: "image"; caption: string };
 
 const BUILT_IN: Record<string, HelpArticle> = {
   "h-start": {
@@ -198,7 +183,7 @@ const CATEGORIES = [
 // Help component
 // ============================================================================
 
-type UserArticle = HelpArticle & { isUserCreated?: boolean };
+type UserArticle = UserHelpArticle;
 
 export function Help({ world }: { world: { id: string } }) {
   const [activeId, setActiveId] = React.useState("h-planet");
@@ -208,15 +193,13 @@ export function Help({ world }: { world: { id: string } }) {
   const [mobileShowList, setMobileShowList] = React.useState(false);
   const isMobile = useIsMobile();
 
-  // Load user-created help articles from localStorage
   React.useEffect(() => {
-    const stored = localStorage.getItem(`wbt:help:${world.id}`);
-    if (stored) setUserArticles(JSON.parse(stored));
+    setUserArticles(getHelpArticles(world.id));
   }, [world.id]);
 
   const saveUserArticles = (arts: UserArticle[]) => {
     setUserArticles(arts);
-    localStorage.setItem(`wbt:help:${world.id}`, JSON.stringify(arts));
+    saveHelpArticles(world.id, arts);
   };
 
   const activeArticle: HelpArticle | UserArticle | undefined =
