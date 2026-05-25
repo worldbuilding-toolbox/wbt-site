@@ -5,7 +5,7 @@ import {
   buildAccountExport, buildWorldExport, downloadBlob, isoDate, slugify,
   type AccountExport, type WorldExport, type WorldBundle, type ExportFile,
 } from "./export";
-import type { User, World } from "./store";
+import { markExported, type User, type World } from "./store";
 
 // ============================================================================
 // Asset references
@@ -120,9 +120,11 @@ async function buildZip(input: ExportFile): Promise<Blob> {
 export async function exportAccountZip(user: User): Promise<void> {
   const blob = await buildZip(buildAccountExport(user));
   downloadBlob(blob, `worldbuilding-toolbox-${isoDate()}.zip`);
+  markExported();
 }
 
 export async function exportWorldZip(world: World): Promise<void> {
   const blob = await buildZip(buildWorldExport(world));
   downloadBlob(blob, `world-${slugify(world.name)}-${isoDate()}.zip`);
+  markExported();
 }

@@ -2,7 +2,12 @@
 import React from "react";
 import { Button, Icon, Modal, Input, Field, Textarea, Tag } from "./Primitives";
 import { useIsMobile } from "./hooks";
-import { createWorld, seedWorld, deleteWorld, type User, type World } from "./store";
+import {
+  createWorld, seedWorld, deleteWorld,
+  getLastExportAt, getNudgeDismissedUntil, dismissNudge,
+  getSnapshots,
+  type User, type World, type SnapshotEnvelope,
+} from "./store";
 import { exportAccount, exportWorld, type ExportFile } from "./export";
 import { exportAccountZip, exportWorldZip } from "./export-zip";
 import { parseImportFile, importWorldBundle, importAccount, summarise, ImportError } from "./import";
@@ -22,7 +27,36 @@ export function Dashboard({
   const [importError, setImportError] = React.useState<string | null>(null);
   const [importConfirm, setImportConfirm] = React.useState("");
   const importFileRef = React.useRef<HTMLInputElement>(null);
+  const [snapshotWorldId, setSnapshotWorldId] = React.useState<string | null>(null);
+  const [nudgeRefresh, setNudgeRefresh] = React.useState(0);
   const isMobile = useIsMobile();
+
+  const nudgeDays = React.useMemo(() => {
+    if (typeof window === "undefined") return null;
+    if (worlds.length === 0) return null;
+    const dismissed = getNudgeDismissedUntil();
+    if (dismissed && new Date(dismissed) > new Date()) return null;
+    const last = getLastExportAt();
+    if (!last) {
+      const oldest = Math.min(...worlds.map((w) => new Date(w.createdAt).getTime()));
+      const ageDays = Math.floor((Date.now() - oldest) / 86_400_000);
+      return ageDays >= 7 ? -1 : null; // -1 sentinel: "never exported"
+    }
+    const days = Math.floor((Date.now() - new Date(last).getTime()) / 86_400_000);
+    return days >= 7 ? days : null;
+    // re-evaluated whenever nudgeRefresh changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [worlds, nudgeRefresh]);
+
+  const handleExportAccountZip = async () => {
+    await exportAccountZip(user);
+    setNudgeRefresh((n) => n + 1);
+  };
+
+  const handleDismissNudge = () => {
+    dismissNudge(7);
+    setNudgeRefresh((n) => n + 1);
+  };
 
   const handleCreate = (name: string, genre: string, tagline: string) => {
     const world = createWorld(user.id, name, genre, tagline);
@@ -111,7 +145,7 @@ export function Dashboard({
               <Button
                 variant="secondary"
                 icon="device-floppy"
-                onClick={() => exportAccount(user)}
+                onClick={() => { exportAccount(user); setNudgeRefresh((n) => n + 1); }}
                 style={isMobile ? { alignSelf: "stretch", justifyContent: "center" } : undefined}
               >
                 Export JSON
@@ -119,7 +153,7 @@ export function Dashboard({
               <Button
                 variant="secondary"
                 icon="paperclip"
-                onClick={() => { exportAccountZip(user); }}
+                onClick={handleExportAccountZip}
                 style={isMobile ? { alignSelf: "stretch", justifyContent: "center" } : undefined}
               >
                 Export ZIP
@@ -152,6 +186,15 @@ export function Dashboard({
         </div>
       </div>
 
+      {nudgeDays !== null && (
+        <ExportNudge
+          days={nudgeDays}
+          onExport={handleExportAccountZip}
+          onDismiss={handleDismissNudge}
+          isMobile={isMobile}
+        />
+      )}
+
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fill, minmax(280px, 1fr))", gap: isMobile ? 12 : 16 }}>
         {worlds.map((w) => (
           <WorldCard
@@ -159,8 +202,9 @@ export function Dashboard({
             world={w}
             onOpen={() => onOpenWorld(w.id)}
             onDelete={() => setDeleteId(w.id)}
-            onExportJson={() => exportWorld(w)}
-            onExportZip={() => { exportWorldZip(w); }}
+            onExportJson={() => { exportWorld(w); setNudgeRefresh((n) => n + 1); }}
+            onExportZip={async () => { await exportWorldZip(w); setNudgeRefresh((n) => n + 1); }}
+            onShowSnapshots={() => setSnapshotWorldId(w.id)}
           />
         ))}
         <NewWorldCard onClick={() => setShowCreate(true)} />
@@ -221,8 +265,138 @@ export function Dashboard({
           onImport={runImport}
         />
       )}
+
+      {snapshotWorldId && (
+        <SnapshotsModal
+          world={worlds.find((w) => w.id === snapshotWorldId)!}
+          onClose={() => setSnapshotWorldId(null)}
+          onRestore={(bundle) => {
+            const fresh = importWorldBundle(bundle, user.id);
+            setSnapshotWorldId(null);
+            onWorldsChange();
+            onOpenWorld(fresh.id);
+          }}
+        />
+      )}
     </div>
   );
+}
+
+// ============================================================================
+// Export nudge banner
+// ============================================================================
+
+function ExportNudge({
+  days, onExport, onDismiss, isMobile,
+}: {
+  days: number;
+  onExport: () => void;
+  onDismiss: () => void;
+  isMobile: boolean;
+}) {
+  const headline = days < 0
+    ? "You haven't exported any of your worlds yet."
+    : `It's been ${days} days since your last export.`;
+  return (
+    <div style={{
+      display: "flex",
+      flexDirection: isMobile ? "column" : "row",
+      alignItems: isMobile ? "stretch" : "center",
+      gap: 12,
+      padding: "12px 16px",
+      background: "var(--bg-elevated)",
+      border: "1px solid var(--accent)",
+      borderRadius: "var(--radius-md)",
+      marginBottom: isMobile ? 16 : 20,
+    }}>
+      <Icon name="alert-circle" size={16} style={{ color: "var(--accent)", flexShrink: 0 }} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontFamily: "var(--font-sans)", fontSize: 14, color: "var(--fg)", fontWeight: 500 }}>
+          {headline}
+        </div>
+        <div style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--fg-muted)", textTransform: "uppercase", letterSpacing: "0.12em", marginTop: 4 }}>
+          A file you can keep off-device is the safest backup of your writing.
+        </div>
+      </div>
+      <div style={{ display: "flex", gap: 8 }}>
+        <Button variant="ghost" size="sm" onClick={onDismiss}>Remind me later</Button>
+        <Button variant="primary" size="sm" icon="paperclip" onClick={onExport}>Export ZIP</Button>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// Snapshots modal
+// ============================================================================
+
+function SnapshotsModal({
+  world, onClose, onRestore,
+}: {
+  world: World;
+  onClose: () => void;
+  onRestore: (bundle: SnapshotEnvelope["bundle"]) => void;
+}) {
+  const snapshots = React.useMemo(() => getSnapshots(world.id), [world.id]);
+  return (
+    <Modal title={`Snapshots · ${world.name}`} onClose={onClose} width={500}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <p style={{ fontFamily: "var(--font-sans)", fontSize: 13, color: "var(--fg-secondary)", lineHeight: 1.55, margin: 0 }}>
+          The toolbox keeps up to three automatic snapshots of every world as you write. Restoring brings the snapshot back as a new world — your current{" "}
+          <strong style={{ color: "var(--fg)" }}>{world.name}</strong> stays put.
+        </p>
+        {snapshots.length === 0 ? (
+          <div style={{ padding: "16px 14px", fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--fg-muted)", textTransform: "uppercase", letterSpacing: "0.1em", textAlign: "center", border: "1px dashed var(--border-strong)", borderRadius: "var(--radius-md)" }}>
+            No snapshots yet. Keep editing — they appear after a couple of seconds of writing.
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {snapshots.map((env) => (
+              <SnapshotRow key={env.ts} env={env} onRestore={() => onRestore(env.bundle)} />
+            ))}
+          </div>
+        )}
+        <div style={{ display: "flex", justifyContent: "flex-end" }}>
+          <Button variant="ghost" onClick={onClose}>Close</Button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+function SnapshotRow({ env, onRestore }: { env: SnapshotEnvelope; onRestore: () => void }) {
+  const captured = new Date(env.ts);
+  const ageMs = Date.now() - captured.getTime();
+  const ageLabel = formatAge(ageMs);
+  const b = env.bundle;
+  return (
+    <div style={{
+      display: "flex", alignItems: "center", gap: 12,
+      padding: "12px 14px",
+      background: "var(--bg)", border: "1px solid var(--border)",
+      borderRadius: "var(--radius-md)",
+    }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontFamily: "var(--font-sans)", fontSize: 14, color: "var(--fg)" }}>
+          {ageLabel}
+        </div>
+        <div style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--fg-muted)", textTransform: "uppercase", letterSpacing: "0.1em", marginTop: 4 }}>
+          {captured.toLocaleString()} · {b.eras.length} eras · {b.events.length} events · {b.articles.length} articles · {b.ideas.length} ideas
+        </div>
+      </div>
+      <Button variant="secondary" size="sm" icon="upload" onClick={onRestore}>Restore</Button>
+    </div>
+  );
+}
+
+function formatAge(ms: number): string {
+  const m = Math.floor(ms / 60_000);
+  if (m < 1) return "Just now";
+  if (m < 60) return `${m} minute${m === 1 ? "" : "s"} ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h} hour${h === 1 ? "" : "s"} ago`;
+  const d = Math.floor(h / 24);
+  return `${d} day${d === 1 ? "" : "s"} ago`;
 }
 
 // ============================================================================
@@ -303,7 +477,7 @@ function ImportPreviewModal({
 // World card
 // ============================================================================
 
-function WorldCard({ world, onOpen, onDelete, onExportJson, onExportZip }: { world: World; onOpen: () => void; onDelete: () => void; onExportJson: () => void; onExportZip: () => void }) {
+function WorldCard({ world, onOpen, onDelete, onExportJson, onExportZip, onShowSnapshots }: { world: World; onOpen: () => void; onDelete: () => void; onExportJson: () => void; onExportZip: () => void; onShowSnapshots: () => void }) {
   const [hover, setHover] = React.useState(false);
   const [menu, setMenu] = React.useState(false);
 
@@ -397,6 +571,7 @@ function WorldCard({ world, onOpen, onDelete, onExportJson, onExportZip }: { wor
           <MenuItem icon="arrow-right" onClick={() => { setMenu(false); onOpen(); }}>Open</MenuItem>
           <MenuItem icon="device-floppy" onClick={() => { setMenu(false); onExportJson(); }}>Export JSON</MenuItem>
           <MenuItem icon="paperclip" onClick={() => { setMenu(false); onExportZip(); }}>Export ZIP</MenuItem>
+          <MenuItem icon="database" onClick={() => { setMenu(false); onShowSnapshots(); }}>Snapshots</MenuItem>
           <MenuItem icon="trash" danger onClick={() => { setMenu(false); onDelete(); }}>Delete</MenuItem>
         </div>
       )}

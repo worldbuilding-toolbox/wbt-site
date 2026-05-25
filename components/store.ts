@@ -132,6 +132,146 @@ function save(key: string, value: unknown) {
 }
 
 // ============================================================================
+// Snapshot ring — 3 deep, debounced, rotated by age
+// ============================================================================
+
+const SNAPSHOT_ROTATE_MS = 30 * 60 * 1000;   // promote slot 0 → 1 after 30 min
+const SNAPSHOT_DEBOUNCE_MS = 2000;            // wait 2s after the last write
+
+export type SnapshotBundle = {
+  world: World;
+  eras: Era[];
+  events: TimelineEvent[];
+  articles: Article[];
+  ideas: Idea[];
+  help: UserHelpArticle[];
+};
+
+export type SnapshotEnvelope = {
+  ts: string;          // last write into this slot
+  rotatedAt: string;   // when slot 0 last accepted a rotation
+  worldId: string;
+  bundle: SnapshotBundle;
+};
+
+const snapshotTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+function snapKey(worldId: string, slot: 0 | 1 | 2) {
+  return `wbt:snapshot:${worldId}:${slot}`;
+}
+
+function captureSnapshot(worldId: string) {
+  if (typeof window === "undefined") return;
+  const world = load<World[]>("wbt:worlds", []).find((w) => w.id === worldId);
+  if (!world) return;
+
+  const bundle: SnapshotBundle = {
+    world,
+    eras: getEras(worldId),
+    events: getEvents(worldId),
+    articles: getArticles(worldId),
+    ideas: getIdeas(worldId),
+    help: getHelpArticles(worldId),
+  };
+  const now = new Date().toISOString();
+
+  // Decide whether to rotate. Read slot 0; if its rotatedAt is older than the
+  // rotate window, promote 1→2 and 0→1 before overwriting slot 0.
+  const slot0Raw = localStorage.getItem(snapKey(worldId, 0));
+  let rotatedAt = now;
+  if (slot0Raw) {
+    try {
+      const prev = JSON.parse(slot0Raw) as SnapshotEnvelope;
+      const ageMs = Date.now() - new Date(prev.rotatedAt).getTime();
+      if (ageMs > SNAPSHOT_ROTATE_MS) {
+        const slot1Raw = localStorage.getItem(snapKey(worldId, 1));
+        if (slot1Raw) localStorage.setItem(snapKey(worldId, 2), slot1Raw);
+        localStorage.setItem(snapKey(worldId, 1), slot0Raw);
+      } else {
+        rotatedAt = prev.rotatedAt;
+      }
+    } catch {
+      // fall through: corrupt slot, just overwrite
+    }
+  }
+
+  try {
+    const env: SnapshotEnvelope = { ts: now, rotatedAt, worldId, bundle };
+    localStorage.setItem(snapKey(worldId, 0), JSON.stringify(env));
+  } catch {
+    // Likely QuotaExceededError. Drop the oldest snapshot rings for OTHER
+    // worlds to make room, then retry once.
+    pruneSnapshotsForRoom();
+    try {
+      const env: SnapshotEnvelope = { ts: now, rotatedAt, worldId, bundle };
+      localStorage.setItem(snapKey(worldId, 0), JSON.stringify(env));
+    } catch {
+      // Give up silently — user data is still in the live keys.
+    }
+  }
+}
+
+function pruneSnapshotsForRoom() {
+  if (typeof window === "undefined") return;
+  // Find every snapshot slot 2 (oldest) and drop them.
+  for (const k of Object.keys(localStorage)) {
+    if (/^wbt:snapshot:[^:]+:2$/.test(k)) localStorage.removeItem(k);
+  }
+}
+
+function scheduleSnapshot(worldId: string) {
+  if (typeof window === "undefined") return;
+  const existing = snapshotTimers.get(worldId);
+  if (existing) clearTimeout(existing);
+  snapshotTimers.set(worldId, setTimeout(() => {
+    snapshotTimers.delete(worldId);
+    captureSnapshot(worldId);
+  }, SNAPSHOT_DEBOUNCE_MS));
+}
+
+export function getSnapshots(worldId: string): SnapshotEnvelope[] {
+  if (typeof window === "undefined") return [];
+  const out: SnapshotEnvelope[] = [];
+  for (const slot of [0, 1, 2] as const) {
+    const raw = localStorage.getItem(snapKey(worldId, slot));
+    if (!raw) continue;
+    try {
+      out.push(JSON.parse(raw) as SnapshotEnvelope);
+    } catch { /* skip corrupt */ }
+  }
+  return out.sort((a, b) => b.ts.localeCompare(a.ts));
+}
+
+function clearSnapshots(worldId: string) {
+  if (typeof window === "undefined") return;
+  for (const slot of [0, 1, 2] as const) {
+    localStorage.removeItem(snapKey(worldId, slot));
+  }
+}
+
+// ============================================================================
+// Export reminder
+// ============================================================================
+
+export function getLastExportAt(): string | null {
+  return load<string | null>("wbt:lastExportAt", null);
+}
+
+export function markExported() {
+  save("wbt:lastExportAt", new Date().toISOString());
+  save("wbt:nudgeDismissedUntil", null);
+}
+
+export function getNudgeDismissedUntil(): string | null {
+  return load<string | null>("wbt:nudgeDismissedUntil", null);
+}
+
+export function dismissNudge(days: number) {
+  const until = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
+  save("wbt:nudgeDismissedUntil", until);
+}
+
+// ============================================================================
 // Auth
 // ============================================================================
 
@@ -207,6 +347,7 @@ export function createWorld(userId: string, name: string, genre: string, tagline
 export function updateWorld(worldId: string, patch: Partial<World>) {
   const worlds = load<World[]>("wbt:worlds", []);
   save("wbt:worlds", worlds.map((w) => w.id === worldId ? { ...w, ...patch } : w));
+  scheduleSnapshot(worldId);
 }
 
 export function deleteWorld(worldId: string) {
@@ -216,11 +357,13 @@ export function deleteWorld(worldId: string) {
   save(`wbt:articles:${worldId}`, []);
   save(`wbt:ideas:${worldId}`, []);
   save(`wbt:help:${worldId}`, []);
+  clearSnapshots(worldId);
 }
 
 export function addWorld(world: World) {
   const worlds = load<World[]>("wbt:worlds", []);
   save("wbt:worlds", [...worlds, world]);
+  scheduleSnapshot(world.id);
 }
 
 // ============================================================================
@@ -233,6 +376,7 @@ export function getEras(worldId: string): Era[] {
 
 export function saveEras(worldId: string, eras: Era[]) {
   save(`wbt:eras:${worldId}`, eras);
+  scheduleSnapshot(worldId);
 }
 
 export function createEra(worldId: string, name: string, shortLabel: string, from: number, to: number): Era {
@@ -246,7 +390,7 @@ export function createEra(worldId: string, name: string, shortLabel: string, fro
     to,
     color: ERA_COLORS[eras.length % ERA_COLORS.length],
   };
-  save(`wbt:eras:${worldId}`, [...eras, era]);
+  saveEras(worldId, [...eras, era]);
   return era;
 }
 
@@ -260,12 +404,13 @@ export function getEvents(worldId: string): TimelineEvent[] {
 
 export function saveEvents(worldId: string, events: TimelineEvent[]) {
   save(`wbt:events:${worldId}`, events);
+  scheduleSnapshot(worldId);
 }
 
 export function createEvent(worldId: string, data: Omit<TimelineEvent, "id" | "worldId">): TimelineEvent {
   const events = getEvents(worldId);
   const ev: TimelineEvent = { id: crypto.randomUUID(), worldId, ...data };
-  save(`wbt:events:${worldId}`, [...events, ev]);
+  saveEvents(worldId, [...events, ev]);
   return ev;
 }
 
@@ -282,6 +427,7 @@ export function getArticles(worldId: string): Article[] {
 
 export function saveArticles(worldId: string, articles: Article[]) {
   save(`wbt:articles:${worldId}`, articles);
+  scheduleSnapshot(worldId);
 }
 
 export function createArticle(worldId: string, title: string, kind: string): Article {
@@ -301,7 +447,7 @@ export function createArticle(worldId: string, title: string, kind: string): Art
     links: [],
     updatedAt: new Date().toISOString(),
   };
-  save(`wbt:articles:${worldId}`, [...articles, article]);
+  saveArticles(worldId, [...articles, article]);
   return article;
 }
 
@@ -318,6 +464,7 @@ export function getIdeas(worldId: string): Idea[] {
 
 export function saveIdeas(worldId: string, ideas: Idea[]) {
   save(`wbt:ideas:${worldId}`, ideas);
+  scheduleSnapshot(worldId);
 }
 
 export function createIdea(worldId: string, title: string, note: string, imageUrl?: string): Idea {
@@ -333,7 +480,7 @@ export function createIdea(worldId: string, title: string, note: string, imageUr
     captured: "just now",
     filed: false,
   };
-  save(`wbt:ideas:${worldId}`, [idea, ...ideas]);
+  saveIdeas(worldId, [idea, ...ideas]);
   return idea;
 }
 
@@ -347,6 +494,7 @@ export function getHelpArticles(worldId: string): UserHelpArticle[] {
 
 export function saveHelpArticles(worldId: string, articles: UserHelpArticle[]) {
   save(`wbt:help:${worldId}`, articles);
+  scheduleSnapshot(worldId);
 }
 
 // ============================================================================

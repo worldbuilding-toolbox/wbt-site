@@ -1,7 +1,7 @@
 "use client";
 
 import {
-  getWorlds, getEras, getEvents, getArticles, getIdeas, getHelpArticles,
+  getWorlds, getEras, getEvents, getArticles, getIdeas, getHelpArticles, markExported,
   type User, type World, type Era, type TimelineEvent, type Article, type Idea, type UserHelpArticle,
 } from "./store";
 
@@ -95,11 +95,13 @@ export function downloadJson(data: ExportFile, filename: string) {
 export function exportAccount(user: User): AccountExport {
   const data = buildAccountExport(user);
   downloadJson(data, `worldbuilding-toolbox-${isoDate()}.json`);
+  markExported();
   return data;
 }
 
 export function exportWorld(world: World): WorldExport {
   const data = buildWorldExport(world);
   downloadJson(data, `world-${slugify(world.name)}-${isoDate()}.json`);
+  markExported();
   return data;
 }
