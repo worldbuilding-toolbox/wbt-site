@@ -68,15 +68,15 @@ export function buildWorldExport(world: World): WorldExport {
   };
 }
 
-function slugify(s: string): string {
+export function slugify(s: string): string {
   return s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "world";
 }
 
-function isoDate(): string {
+export function isoDate(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-function downloadBlob(blob: Blob, filename: string) {
+export function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;

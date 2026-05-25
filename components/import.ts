@@ -1,5 +1,6 @@
 "use client";
 
+import JSZip from "jszip";
 import {
   addWorld, deleteWorld, getWorlds,
   saveEras, saveEvents, saveArticles, saveIdeas, saveHelpArticles,
@@ -9,6 +10,7 @@ import {
   EXPORT_APP_NAME, EXPORT_SCHEMA_VERSION,
   type AccountExport, type ExportFile, type WorldBundle, type WorldExport,
 } from "./export";
+import type { ZipAssetMap, ZipManifest } from "./export-zip";
 
 export class ImportError extends Error {
   constructor(message: string) {
@@ -132,6 +134,112 @@ function summariseBundle(b: WorldBundle): ImportSummary {
     ideas: b.ideas.length,
     help: b.help.length,
   };
+}
+
+/**
+ * Read a ZIP export, rehydrate every external asset back into the inline
+ * dataUrl form the rest of the codebase already understands, and return
+ * an ExportFile suitable for the normal importWorldBundle / importAccount
+ * code path.
+ */
+export async function parseZipFile(file: File | Blob): Promise<ExportFile> {
+  let zip: JSZip;
+  try {
+    zip = await JSZip.loadAsync(file);
+  } catch {
+    throw new ImportError("That ZIP file couldn't be opened.");
+  }
+  const manifestEntry = zip.file("manifest.json");
+  if (!manifestEntry) {
+    throw new ImportError("ZIP is missing manifest.json — is this a Worldbuilding Toolbox export?");
+  }
+  const text = await manifestEntry.async("string");
+  const manifest = parseExportFile(text) as ZipManifest;
+  const assets: ZipAssetMap = (manifest as ZipManifest).assets ?? {};
+
+  const rehydrateBundle = async (b: WorldBundle): Promise<WorldBundle> => {
+    const articles = await Promise.all(b.articles.map(async (article) => {
+      const coverPath = assets.articleCovers?.[article.id];
+      let imageUrl = article.imageUrl;
+      if (coverPath) imageUrl = await loadDataUrl(zip, coverPath);
+
+      const attachmentPaths = assets.articleAttachments?.[article.id] ?? {};
+      const attachments = await Promise.all(article.attachments.map(async (att) => {
+        const path = attachmentPaths[att.id];
+        if (!path) return att;
+        const dataUrl = await loadDataUrl(zip, path);
+        return { ...att, dataUrl };
+      }));
+
+      return { ...article, imageUrl, attachments };
+    }));
+
+    const ideas = await Promise.all(b.ideas.map(async (idea) => {
+      const path = assets.ideaImages?.[idea.id];
+      if (!path) return idea;
+      const dataUrl = await loadDataUrl(zip, path);
+      return { ...idea, imageUrl: dataUrl };
+    }));
+
+    return { ...b, articles, ideas };
+  };
+
+  if (manifest.scope === "account") {
+    const worlds = await Promise.all(manifest.worlds.map(rehydrateBundle));
+    const rebuilt: AccountExport = { ...manifest, worlds };
+    delete (rebuilt as Partial<ZipManifest>).assets;
+    return rebuilt;
+  } else {
+    const world = await rehydrateBundle(manifest.world);
+    const rebuilt: WorldExport = { ...manifest, world };
+    delete (rebuilt as Partial<ZipManifest>).assets;
+    return rebuilt;
+  }
+}
+
+const MIME_BY_EXT: Record<string, string> = {
+  png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif",
+  webp: "image/webp", svg: "image/svg+xml", bmp: "image/bmp", avif: "image/avif",
+  pdf: "application/pdf",
+  txt: "text/plain", md: "text/markdown", json: "application/json",
+  doc: "application/msword",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  ppt: "application/vnd.ms-powerpoint",
+  pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  xls: "application/vnd.ms-excel",
+  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  zip: "application/zip",
+};
+
+function mimeFromPath(path: string): string {
+  const ext = path.split(".").pop()?.toLowerCase() ?? "";
+  return MIME_BY_EXT[ext] ?? "application/octet-stream";
+}
+
+async function loadDataUrl(zip: JSZip, path: string): Promise<string | undefined> {
+  const entry = zip.file(path);
+  if (!entry) return undefined;
+  const buf = await entry.async("arraybuffer");
+  const blob = new Blob([buf], { type: mimeFromPath(path) });
+  return await blobToDataUrl(blob);
+}
+
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result as string);
+    r.onerror = () => reject(r.error);
+    r.readAsDataURL(blob);
+  });
+}
+
+/** Convenience: route a File from <input type="file"> to JSON or ZIP parser. */
+export async function parseImportFile(file: File): Promise<ExportFile> {
+  const isZip = file.type === "application/zip"
+    || file.type === "application/x-zip-compressed"
+    || file.name.toLowerCase().endsWith(".zip");
+  if (isZip) return parseZipFile(file);
+  return parseExportFile(await file.text());
 }
 
 export function summarise(file: ExportFile): ImportSummary {

@@ -4,7 +4,8 @@ import { Button, Icon, Modal, Input, Field, Textarea, Tag } from "./Primitives";
 import { useIsMobile } from "./hooks";
 import { createWorld, seedWorld, deleteWorld, type User, type World } from "./store";
 import { exportAccount, exportWorld, type ExportFile } from "./export";
-import { parseExportFile, importWorldBundle, importAccount, summarise, ImportError } from "./import";
+import { exportAccountZip, exportWorldZip } from "./export-zip";
+import { parseImportFile, importWorldBundle, importAccount, summarise, ImportError } from "./import";
 
 export function Dashboard({
   user, worlds, onOpenWorld, onWorldsChange,
@@ -46,7 +47,7 @@ export function Dashboard({
     e.target.value = "";
     if (!file) return;
     try {
-      const parsed = parseExportFile(await file.text());
+      const parsed = await parseImportFile(file);
       setImportPayload(parsed);
       setImportError(null);
     } catch (err) {
@@ -106,14 +107,24 @@ export function Dashboard({
           alignItems: isMobile ? "stretch" : "center",
         }}>
           {worlds.length > 0 && (
-            <Button
-              variant="secondary"
-              icon="device-floppy"
-              onClick={() => exportAccount(user)}
-              style={isMobile ? { alignSelf: "stretch", justifyContent: "center" } : undefined}
-            >
-              Export everything
-            </Button>
+            <>
+              <Button
+                variant="secondary"
+                icon="device-floppy"
+                onClick={() => exportAccount(user)}
+                style={isMobile ? { alignSelf: "stretch", justifyContent: "center" } : undefined}
+              >
+                Export JSON
+              </Button>
+              <Button
+                variant="secondary"
+                icon="paperclip"
+                onClick={() => { exportAccountZip(user); }}
+                style={isMobile ? { alignSelf: "stretch", justifyContent: "center" } : undefined}
+              >
+                Export ZIP
+              </Button>
+            </>
           )}
           <Button
             variant="secondary"
@@ -126,7 +137,7 @@ export function Dashboard({
           <input
             ref={importFileRef}
             type="file"
-            accept="application/json,.json"
+            accept="application/json,application/zip,.json,.zip"
             style={{ display: "none" }}
             onChange={handleFileChosen}
           />
@@ -148,7 +159,8 @@ export function Dashboard({
             world={w}
             onOpen={() => onOpenWorld(w.id)}
             onDelete={() => setDeleteId(w.id)}
-            onExport={() => exportWorld(w)}
+            onExportJson={() => exportWorld(w)}
+            onExportZip={() => { exportWorldZip(w); }}
           />
         ))}
         <NewWorldCard onClick={() => setShowCreate(true)} />
@@ -291,7 +303,7 @@ function ImportPreviewModal({
 // World card
 // ============================================================================
 
-function WorldCard({ world, onOpen, onDelete, onExport }: { world: World; onOpen: () => void; onDelete: () => void; onExport: () => void }) {
+function WorldCard({ world, onOpen, onDelete, onExportJson, onExportZip }: { world: World; onOpen: () => void; onDelete: () => void; onExportJson: () => void; onExportZip: () => void }) {
   const [hover, setHover] = React.useState(false);
   const [menu, setMenu] = React.useState(false);
 
@@ -383,7 +395,8 @@ function WorldCard({ world, onOpen, onDelete, onExport }: { world: World; onOpen
           onClick={(e) => e.stopPropagation()}
         >
           <MenuItem icon="arrow-right" onClick={() => { setMenu(false); onOpen(); }}>Open</MenuItem>
-          <MenuItem icon="device-floppy" onClick={() => { setMenu(false); onExport(); }}>Export</MenuItem>
+          <MenuItem icon="device-floppy" onClick={() => { setMenu(false); onExportJson(); }}>Export JSON</MenuItem>
+          <MenuItem icon="paperclip" onClick={() => { setMenu(false); onExportZip(); }}>Export ZIP</MenuItem>
           <MenuItem icon="trash" danger onClick={() => { setMenu(false); onDelete(); }}>Delete</MenuItem>
         </div>
       )}
