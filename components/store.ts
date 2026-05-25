@@ -215,6 +215,12 @@ export function deleteWorld(worldId: string) {
   save(`wbt:events:${worldId}`, []);
   save(`wbt:articles:${worldId}`, []);
   save(`wbt:ideas:${worldId}`, []);
+  save(`wbt:help:${worldId}`, []);
+}
+
+export function addWorld(world: World) {
+  const worlds = load<World[]>("wbt:worlds", []);
+  save("wbt:worlds", [...worlds, world]);
 }
 
 // ============================================================================

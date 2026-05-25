@@ -3,7 +3,8 @@ import React from "react";
 import { Button, Icon, Modal, Input, Field, Textarea, Tag } from "./Primitives";
 import { useIsMobile } from "./hooks";
 import { createWorld, seedWorld, deleteWorld, type User, type World } from "./store";
-import { exportAccount, exportWorld } from "./export";
+import { exportAccount, exportWorld, type ExportFile } from "./export";
+import { parseExportFile, importWorldBundle, importAccount, summarise, ImportError } from "./import";
 
 export function Dashboard({
   user, worlds, onOpenWorld, onWorldsChange,
@@ -16,6 +17,10 @@ export function Dashboard({
   const [showCreate, setShowCreate] = React.useState(false);
   const [deleteId, setDeleteId] = React.useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = React.useState("");
+  const [importPayload, setImportPayload] = React.useState<ExportFile | null>(null);
+  const [importError, setImportError] = React.useState<string | null>(null);
+  const [importConfirm, setImportConfirm] = React.useState("");
+  const importFileRef = React.useRef<HTMLInputElement>(null);
   const isMobile = useIsMobile();
 
   const handleCreate = (name: string, genre: string, tagline: string) => {
@@ -32,6 +37,42 @@ export function Dashboard({
     onWorldsChange();
     setDeleteId(null);
     setDeleteConfirm("");
+  };
+
+  const handlePickFile = () => importFileRef.current?.click();
+
+  const handleFileChosen = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    try {
+      const parsed = parseExportFile(await file.text());
+      setImportPayload(parsed);
+      setImportError(null);
+    } catch (err) {
+      setImportPayload(null);
+      setImportError(err instanceof ImportError ? err.message : "Could not read that file.");
+    }
+  };
+
+  const dismissImport = () => {
+    setImportPayload(null);
+    setImportError(null);
+    setImportConfirm("");
+  };
+
+  const runImport = () => {
+    if (!importPayload) return;
+    if (importPayload.scope === "world") {
+      const fresh = importWorldBundle(importPayload.world, user.id);
+      dismissImport();
+      onWorldsChange();
+      onOpenWorld(fresh.id);
+    } else {
+      importAccount(importPayload, user.id);
+      dismissImport();
+      onWorldsChange();
+    }
   };
 
   const worldToDelete = worlds.find((w) => w.id === deleteId) ?? null;
@@ -74,6 +115,21 @@ export function Dashboard({
               Export everything
             </Button>
           )}
+          <Button
+            variant="secondary"
+            icon="upload"
+            onClick={handlePickFile}
+            style={isMobile ? { alignSelf: "stretch", justifyContent: "center" } : undefined}
+          >
+            Import
+          </Button>
+          <input
+            ref={importFileRef}
+            type="file"
+            accept="application/json,.json"
+            style={{ display: "none" }}
+            onChange={handleFileChosen}
+          />
           <Button
             variant="primary"
             icon="plus"
@@ -130,7 +186,104 @@ export function Dashboard({
           </div>
         </Modal>
       )}
+
+      {importError && (
+        <Modal title="Couldn't read that file" onClose={dismissImport} width={420}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <p style={{ fontFamily: "var(--font-sans)", fontSize: 14, color: "var(--fg-secondary)", lineHeight: 1.6, margin: 0 }}>
+              {importError}
+            </p>
+            <div style={{ display: "flex", justifyContent: "flex-end" }}>
+              <Button variant="ghost" onClick={dismissImport}>Close</Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {importPayload && (
+        <ImportPreviewModal
+          payload={importPayload}
+          confirmText={importConfirm}
+          onConfirmText={setImportConfirm}
+          onClose={dismissImport}
+          onImport={runImport}
+        />
+      )}
     </div>
+  );
+}
+
+// ============================================================================
+// Import preview modal
+// ============================================================================
+
+function ImportPreviewModal({
+  payload, confirmText, onConfirmText, onClose, onImport,
+}: {
+  payload: ExportFile;
+  confirmText: string;
+  onConfirmText: (v: string) => void;
+  onClose: () => void;
+  onImport: () => void;
+}) {
+  const s = summarise(payload);
+  const isAccount = payload.scope === "account";
+  const title = isAccount ? "Replace account from file" : "Import world from file";
+  const worldName = payload.scope === "world" ? payload.world.world.name : null;
+
+  return (
+    <Modal title={title} onClose={onClose} width={460}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        {payload.scope === "world" ? (
+          <p style={{ fontFamily: "var(--font-sans)", fontSize: 14, color: "var(--fg-secondary)", lineHeight: 1.6, margin: 0 }}>
+            This will create a new world on your account called{" "}
+            <strong style={{ color: "var(--fg)" }}>{worldName}</strong>. Existing worlds are untouched.
+          </p>
+        ) : (
+          <p style={{ fontFamily: "var(--font-sans)", fontSize: 14, color: "var(--danger)", lineHeight: 1.6, margin: 0 }}>
+            <strong>This will replace every world on your account</strong> with the {s.worlds} {s.worlds === 1 ? "world" : "worlds"} in this file. Anything you haven't exported will be lost.
+          </p>
+        )}
+
+        <div style={{ padding: "12px 14px", background: "var(--bg)", border: "1px solid var(--border)", borderRadius: "var(--radius-md)" }}>
+          <div style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--fg-muted)", textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 8 }}>
+            File contents
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "4px 16px", fontFamily: "var(--font-sans)", fontSize: 13, color: "var(--fg)" }}>
+            <span style={{ color: "var(--fg-muted)" }}>Worlds</span><span>{s.worlds}</span>
+            <span style={{ color: "var(--fg-muted)" }}>Eras</span><span>{s.eras}</span>
+            <span style={{ color: "var(--fg-muted)" }}>Events</span><span>{s.events}</span>
+            <span style={{ color: "var(--fg-muted)" }}>Articles</span><span>{s.articles}</span>
+            <span style={{ color: "var(--fg-muted)" }}>Ideas</span><span>{s.ideas}</span>
+            {s.help > 0 && <><span style={{ color: "var(--fg-muted)" }}>Guides</span><span>{s.help}</span></>}
+          </div>
+        </div>
+
+        {isAccount && (
+          <Field label='Type "REPLACE" to confirm'>
+            <Input autoFocus placeholder="REPLACE" value={confirmText} onChange={onConfirmText} />
+          </Field>
+        )}
+
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          {isAccount ? (
+            <Button
+              variant="danger"
+              icon="upload"
+              disabled={confirmText !== "REPLACE"}
+              onClick={onImport}
+            >
+              Replace everything
+            </Button>
+          ) : (
+            <Button variant="primary" icon="upload" onClick={onImport}>
+              Import world
+            </Button>
+          )}
+        </div>
+      </div>
+    </Modal>
   );
 }
 
