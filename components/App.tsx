@@ -7,6 +7,8 @@ import { Timeline } from "./Timeline";
 import { ArticleView } from "./Article";
 import { IdeaInbox } from "./IdeaInbox";
 import { Help } from "./Help";
+import { ErrorBoundary } from "./ErrorBoundary";
+import { ToastProvider } from "./Toast";
 import { useIsMobile } from "./hooks";
 import { getCurrentUser, getWorlds, signOut, type User, type World } from "./store";
 
@@ -14,6 +16,16 @@ type Screen = "dashboard" | "world";
 type WorldView = "timeline" | "articles" | "ideas" | "help";
 
 export default function App() {
+  return (
+    <ErrorBoundary scope="the app">
+      <ToastProvider>
+        <AppInner />
+      </ToastProvider>
+    </ErrorBoundary>
+  );
+}
+
+function AppInner() {
   const [user, setUser] = React.useState<User | null>(null);
   const [worlds, setWorlds] = React.useState<World[]>([]);
   const [screen, setScreen] = React.useState<Screen>("dashboard");
@@ -102,38 +114,48 @@ export default function App() {
 
         <div style={{ flex: 1, overflow: "auto" }}>
           {screen === "dashboard" && (
-            <Dashboard
-              user={user}
-              worlds={worlds}
-              onOpenWorld={handleOpenWorld}
-              onWorldsChange={reloadWorlds}
-            />
+            <ErrorBoundary scope="the dashboard">
+              <Dashboard
+                user={user}
+                worlds={worlds}
+                onOpenWorld={handleOpenWorld}
+                onWorldsChange={reloadWorlds}
+              />
+            </ErrorBoundary>
           )}
 
           {screen === "world" && currentWorld && (
             <>
               {view === "timeline" && (
-                <Timeline
-                  world={currentWorld}
-                  onWorldChange={() => {
-                    reloadWorlds();
-                  }}
-                />
+                <ErrorBoundary scope="the timeline">
+                  <Timeline
+                    world={currentWorld}
+                    onWorldChange={() => {
+                      reloadWorlds();
+                    }}
+                  />
+                </ErrorBoundary>
               )}
               {view === "articles" && (
-                <ArticleView
-                  world={currentWorld}
-                  searchQuery={searchQuery}
-                />
+                <ErrorBoundary scope="this article">
+                  <ArticleView
+                    world={currentWorld}
+                    searchQuery={searchQuery}
+                  />
+                </ErrorBoundary>
               )}
               {view === "ideas" && (
-                <IdeaInbox
-                  world={currentWorld}
-                  searchQuery={searchQuery}
-                />
+                <ErrorBoundary scope="the idea inbox">
+                  <IdeaInbox
+                    world={currentWorld}
+                    searchQuery={searchQuery}
+                  />
+                </ErrorBoundary>
               )}
               {view === "help" && (
-                <Help world={currentWorld} />
+                <ErrorBoundary scope="the help library">
+                  <Help world={currentWorld} />
+                </ErrorBoundary>
               )}
             </>
           )}

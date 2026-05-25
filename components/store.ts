@@ -250,6 +250,189 @@ function clearSnapshots(worldId: string) {
 }
 
 // ============================================================================
+// Trash (soft-delete) — 30 day TTL
+// ============================================================================
+
+const TRASH_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
+export type TrashEntry =
+  | { id: string; deletedAt: string; kind: "world"; worldId: string; world: World; eras: Era[]; events: TimelineEvent[]; articles: Article[]; ideas: Idea[]; help: UserHelpArticle[] }
+  | { id: string; deletedAt: string; kind: "era"; worldId: string; payload: Era }
+  | { id: string; deletedAt: string; kind: "event"; worldId: string; payload: TimelineEvent }
+  | { id: string; deletedAt: string; kind: "article"; worldId: string; payload: Article }
+  | { id: string; deletedAt: string; kind: "idea"; worldId: string; payload: Idea };
+
+function trashKey(userId: string) {
+  return `wbt:trash:${userId}`;
+}
+
+function newTrashId(): string {
+  return typeof crypto !== "undefined" && crypto.randomUUID
+    ? crypto.randomUUID()
+    : `tr-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function pruneExpired(entries: TrashEntry[]): TrashEntry[] {
+  const cutoff = Date.now() - TRASH_TTL_MS;
+  return entries.filter((e) => new Date(e.deletedAt).getTime() >= cutoff);
+}
+
+export function getTrash(userId: string): TrashEntry[] {
+  const raw = load<TrashEntry[]>(trashKey(userId), []);
+  const live = pruneExpired(raw);
+  if (live.length !== raw.length) save(trashKey(userId), live);
+  return [...live].sort((a, b) => b.deletedAt.localeCompare(a.deletedAt));
+}
+
+type TrashEntryInput = TrashEntry extends infer T
+  ? T extends { id: string; deletedAt: string }
+    ? Omit<T, "id" | "deletedAt">
+    : never
+  : never;
+
+function pushTrash(userId: string, entry: TrashEntryInput): string {
+  const id = newTrashId();
+  const full = { ...entry, id, deletedAt: new Date().toISOString() } as TrashEntry;
+  const existing = load<TrashEntry[]>(trashKey(userId), []);
+  save(trashKey(userId), pruneExpired([full, ...existing]));
+  return id;
+}
+
+export function purgeTrash(userId: string, entryId: string) {
+  const existing = load<TrashEntry[]>(trashKey(userId), []);
+  save(trashKey(userId), existing.filter((e) => e.id !== entryId));
+}
+
+export function clearTrash(userId: string) {
+  save(trashKey(userId), []);
+}
+
+/**
+ * Restore a trash entry. Child entities (era/event/article/idea) only restore
+ * if their parent world still exists; otherwise the call is a no-op and the
+ * entry is kept so the user can still restore by recreating the world.
+ *
+ * Returns:
+ *   { ok: true }      restore succeeded
+ *   { ok: false, reason } restore couldn't proceed
+ */
+export function restoreFromTrash(userId: string, entryId: string): { ok: true } | { ok: false; reason: string } {
+  const existing = load<TrashEntry[]>(trashKey(userId), []);
+  const entry = existing.find((e) => e.id === entryId);
+  if (!entry) return { ok: false, reason: "Entry not found" };
+
+  if (entry.kind === "world") {
+    addWorld(entry.world);
+    saveEras(entry.world.id, entry.eras);
+    saveEvents(entry.world.id, entry.events);
+    saveArticles(entry.world.id, entry.articles);
+    saveIdeas(entry.world.id, entry.ideas);
+    saveHelpArticles(entry.world.id, entry.help);
+    purgeTrash(userId, entryId);
+    return { ok: true };
+  }
+
+  // Child entity — parent world must still exist
+  const parent = load<World[]>("wbt:worlds", []).find((w) => w.id === entry.worldId);
+  if (!parent) {
+    return { ok: false, reason: "The world this belonged to has been deleted too — restore it first." };
+  }
+  switch (entry.kind) {
+    case "era":
+      saveEras(entry.worldId, [...getEras(entry.worldId), entry.payload]);
+      break;
+    case "event":
+      saveEvents(entry.worldId, [...getEvents(entry.worldId), entry.payload]);
+      break;
+    case "article":
+      saveArticles(entry.worldId, [...getArticles(entry.worldId), entry.payload]);
+      break;
+    case "idea":
+      saveIdeas(entry.worldId, [...getIdeas(entry.worldId), entry.payload]);
+      break;
+  }
+  purgeTrash(userId, entryId);
+  return { ok: true };
+}
+
+// ============================================================================
+// Soft-delete wrappers — push to trash, then remove from live store
+// ============================================================================
+
+function currentUserId(): string | null {
+  return getCurrentUser()?.id ?? null;
+}
+
+export function softDeleteWorld(worldId: string): string | null {
+  const userId = currentUserId();
+  if (!userId) return null;
+  const world = load<World[]>("wbt:worlds", []).find((w) => w.id === worldId);
+  if (!world) return null;
+  const id = pushTrash(userId, {
+    kind: "world",
+    worldId,
+    world,
+    eras: getEras(worldId),
+    events: getEvents(worldId),
+    articles: getArticles(worldId),
+    ideas: getIdeas(worldId),
+    help: getHelpArticles(worldId),
+  });
+  deleteWorld(worldId);
+  return id;
+}
+
+export function softDeleteEra(worldId: string, eraId: string): string | null {
+  const userId = currentUserId();
+  if (!userId) return null;
+  const eras = getEras(worldId);
+  const era = eras.find((e) => e.id === eraId);
+  if (!era) return null;
+  const id = pushTrash(userId, { kind: "era", worldId, payload: era });
+  saveEras(worldId, eras.filter((e) => e.id !== eraId));
+  return id;
+}
+
+export function softDeleteEvent(worldId: string, eventId: string): string | null {
+  const userId = currentUserId();
+  if (!userId) return null;
+  const events = getEvents(worldId);
+  const ev = events.find((e) => e.id === eventId);
+  if (!ev) return null;
+  const id = pushTrash(userId, { kind: "event", worldId, payload: ev });
+  saveEvents(worldId, events.filter((e) => e.id !== eventId));
+  return id;
+}
+
+export function softDeleteArticle(worldId: string, articleId: string): string | null {
+  const userId = currentUserId();
+  if (!userId) return null;
+  const articles = getArticles(worldId);
+  const article = articles.find((a) => a.id === articleId);
+  if (!article) return null;
+  const id = pushTrash(userId, { kind: "article", worldId, payload: article });
+  saveArticles(worldId, articles.filter((a) => a.id !== articleId));
+  return id;
+}
+
+export function softDeleteIdea(worldId: string, ideaId: string): string | null {
+  const userId = currentUserId();
+  if (!userId) return null;
+  const ideas = getIdeas(worldId);
+  const idea = ideas.find((i) => i.id === ideaId);
+  if (!idea) return null;
+  const id = pushTrash(userId, { kind: "idea", worldId, payload: idea });
+  saveIdeas(worldId, ideas.filter((i) => i.id !== ideaId));
+  return id;
+}
+
+export function restoreLast(trashId: string): { ok: true } | { ok: false; reason: string } {
+  const userId = currentUserId();
+  if (!userId) return { ok: false, reason: "Not signed in." };
+  return restoreFromTrash(userId, trashId);
+}
+
+// ============================================================================
 // Export reminder
 // ============================================================================
 

@@ -3,14 +3,16 @@ import React from "react";
 import { Button, Icon, Modal, Input, Field, Textarea, Tag } from "./Primitives";
 import { useIsMobile } from "./hooks";
 import {
-  createWorld, seedWorld, deleteWorld,
+  createWorld, seedWorld,
+  softDeleteWorld, restoreFromTrash, purgeTrash, clearTrash, getTrash,
   getLastExportAt, getNudgeDismissedUntil, dismissNudge,
   getSnapshots,
-  type User, type World, type SnapshotEnvelope,
+  type User, type World, type SnapshotEnvelope, type TrashEntry,
 } from "./store";
 import { exportAccount, exportWorld, type ExportFile } from "./export";
 import { exportAccountZip, exportWorldZip } from "./export-zip";
 import { parseImportFile, importWorldBundle, importAccount, summarise, ImportError } from "./import";
+import { useToast } from "./Toast";
 
 export function Dashboard({
   user, worlds, onOpenWorld, onWorldsChange,
@@ -28,8 +30,10 @@ export function Dashboard({
   const [importConfirm, setImportConfirm] = React.useState("");
   const importFileRef = React.useRef<HTMLInputElement>(null);
   const [snapshotWorldId, setSnapshotWorldId] = React.useState<string | null>(null);
+  const [showTrash, setShowTrash] = React.useState(false);
   const [nudgeRefresh, setNudgeRefresh] = React.useState(0);
   const isMobile = useIsMobile();
+  const toast = useToast();
 
   const nudgeDays = React.useMemo(() => {
     if (typeof window === "undefined") return null;
@@ -68,10 +72,28 @@ export function Dashboard({
 
   const handleDelete = () => {
     if (!deleteId) return;
-    deleteWorld(deleteId);
+    const world = worlds.find((w) => w.id === deleteId);
+    const trashId = softDeleteWorld(deleteId);
     onWorldsChange();
     setDeleteId(null);
     setDeleteConfirm("");
+    if (trashId && world) {
+      toast.push({
+        message: `Deleted "${world.name}". You can restore it for the next 30 days.`,
+        tone: "info",
+        durationMs: 8000,
+        action: {
+          label: "Undo",
+          onClick: () => {
+            const result = restoreFromTrash(user.id, trashId);
+            if (result.ok) {
+              onWorldsChange();
+              toast.push({ message: `Restored "${world.name}".`, tone: "success" });
+            }
+          },
+        },
+      });
+    }
   };
 
   const handlePickFile = () => importFileRef.current?.click();
@@ -168,6 +190,14 @@ export function Dashboard({
           >
             Import
           </Button>
+          <Button
+            variant="ghost"
+            icon="trash"
+            onClick={() => setShowTrash(true)}
+            style={isMobile ? { alignSelf: "stretch", justifyContent: "center" } : undefined}
+          >
+            Trash
+          </Button>
           <input
             ref={importFileRef}
             type="file"
@@ -218,7 +248,7 @@ export function Dashboard({
         <Modal title="Delete world" onClose={() => { setDeleteId(null); setDeleteConfirm(""); }} width={420}>
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <p style={{ fontFamily: "var(--font-sans)", fontSize: 14, color: "var(--fg-secondary)", lineHeight: 1.6, margin: 0 }}>
-              This will permanently delete <strong style={{ color: "var(--fg)" }}>{worldToDelete.name}</strong> and everything inside it — all eras, events, articles, and ideas. This cannot be undone.
+              This deletes <strong style={{ color: "var(--fg)" }}>{worldToDelete.name}</strong> and everything inside it — all eras, events, articles, and ideas. It will sit in <em>Trash</em> for 30 days so you can restore it; after that it's gone for good.
             </p>
             <Field label={`Type "${worldToDelete.name}" to confirm`}>
               <Input
@@ -278,8 +308,117 @@ export function Dashboard({
           }}
         />
       )}
+
+      {showTrash && (
+        <TrashModal
+          userId={user.id}
+          onClose={() => setShowTrash(false)}
+          onChanged={onWorldsChange}
+        />
+      )}
     </div>
   );
+}
+
+// ============================================================================
+// Trash modal — "Recently deleted"
+// ============================================================================
+
+function TrashModal({
+  userId, onClose, onChanged,
+}: {
+  userId: string;
+  onClose: () => void;
+  onChanged: () => void;
+}) {
+  const toast = useToast();
+  const [entries, setEntries] = React.useState<TrashEntry[]>(() => getTrash(userId));
+  const reload = () => setEntries(getTrash(userId));
+
+  const restore = (entry: TrashEntry) => {
+    const result = restoreFromTrash(userId, entry.id);
+    if (result.ok) {
+      reload();
+      onChanged();
+      toast.push({ message: `Restored ${describe(entry)}.`, tone: "success" });
+    } else {
+      toast.push({ message: result.reason, tone: "danger" });
+    }
+  };
+
+  const purge = (entry: TrashEntry) => {
+    purgeTrash(userId, entry.id);
+    reload();
+    toast.push({ message: `Permanently deleted ${describe(entry)}.`, tone: "info" });
+  };
+
+  const emptyAll = () => {
+    if (!confirm("Permanently delete every item in the trash? This cannot be undone.")) return;
+    clearTrash(userId);
+    reload();
+    toast.push({ message: "Trash emptied.", tone: "info" });
+  };
+
+  return (
+    <Modal title="Recently deleted" onClose={onClose} width={520}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <p style={{ margin: 0, fontFamily: "var(--font-sans)", fontSize: 13, color: "var(--fg-secondary)", lineHeight: 1.55 }}>
+          Anything you've deleted in the last 30 days sits here. After that it's removed for good.
+        </p>
+        {entries.length === 0 ? (
+          <div style={{ padding: "16px 14px", textAlign: "center", border: "1px dashed var(--border-strong)", borderRadius: "var(--radius-md)", fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--fg-muted)", textTransform: "uppercase", letterSpacing: "0.1em" }}>
+            Trash is empty.
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {entries.map((entry) => (
+              <TrashRow key={entry.id} entry={entry} onRestore={() => restore(entry)} onPurge={() => purge(entry)} />
+            ))}
+          </div>
+        )}
+        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
+          <Button variant="danger" size="sm" icon="trash" disabled={entries.length === 0} onClick={emptyAll}>
+            Empty trash
+          </Button>
+          <Button variant="ghost" onClick={onClose}>Close</Button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+function TrashRow({ entry, onRestore, onPurge }: { entry: TrashEntry; onRestore: () => void; onPurge: () => void }) {
+  const captured = new Date(entry.deletedAt);
+  const ageMs = Date.now() - captured.getTime();
+  return (
+    <div style={{
+      display: "flex", alignItems: "center", gap: 12,
+      padding: "12px 14px",
+      background: "var(--bg)", border: "1px solid var(--border)",
+      borderRadius: "var(--radius-md)",
+    }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontFamily: "var(--font-sans)", fontSize: 14, color: "var(--fg)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {describe(entry)}
+        </div>
+        <div style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--fg-muted)", textTransform: "uppercase", letterSpacing: "0.1em", marginTop: 4 }}>
+          {entry.kind.toUpperCase()} · deleted {formatAge(ageMs)} · {captured.toLocaleString()}
+        </div>
+      </div>
+      <Button variant="secondary" size="sm" icon="upload" onClick={onRestore}>Restore</Button>
+      <Button variant="danger" size="sm" icon="trash" onClick={() => { if (confirm("Permanently delete this item?")) onPurge(); }} />
+    </div>
+  );
+}
+
+function describe(entry: TrashEntry): string {
+  switch (entry.kind) {
+    case "world": return `world "${entry.world.name}"`;
+    case "era": return `era "${entry.payload.name}"`;
+    case "event": return `event "${entry.payload.title}"`;
+    case "article": return `article "${entry.payload.title}"`;
+    case "idea": return `idea "${entry.payload.title}"`;
+  }
 }
 
 // ============================================================================

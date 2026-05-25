@@ -4,8 +4,10 @@ import { Button, IconButton, Icon, Tag, Divider, Modal, Input, Field, Textarea, 
 import { useIsMobile } from "./hooks";
 import {
   getArticles, saveArticles, createArticle,
+  softDeleteArticle, restoreLast,
   type World, type Article, type BodyBlock, type Attachment, type Fact,
 } from "./store";
+import { useToast } from "./Toast";
 
 const KINDS = ["character", "place", "faction", "creature", "technology", "concept", "object", "other"];
 const KIND_COLORS: Record<string, string> = {
@@ -38,6 +40,7 @@ export function ArticleView({ world, searchQuery }: { world: World; searchQuery:
   const [filterQ, setFilterQ] = React.useState("");
   const [mobileShowList, setMobileShowList] = React.useState(true);
   const isMobile = useIsMobile();
+  const toast = useToast();
 
   const reload = () => {
     const arts = getArticles(world.id);
@@ -147,12 +150,28 @@ export function ArticleView({ world, searchQuery }: { world: World; searchQuery:
           onToggleEdit={() => { setEditing(!editing); }}
           onUpdate={updateActive}
           onDelete={() => {
-            const updated = articles.filter((a) => a.id !== active.id);
-            saveArticles(world.id, updated);
+            const deleted = active;
+            const trashId = softDeleteArticle(world.id, deleted.id);
+            const updated = articles.filter((a) => a.id !== deleted.id);
             setArticles(updated);
             setActiveId(updated[0]?.id || null);
             setEditing(false);
             if (isMobile) setMobileShowList(true);
+            if (trashId) {
+              toast.push({
+                message: `Deleted article "${deleted.title}".`,
+                durationMs: 8000,
+                action: {
+                  label: "Undo",
+                  onClick: () => {
+                    if (restoreLast(trashId).ok) {
+                      reload();
+                      toast.push({ message: `Restored "${deleted.title}".`, tone: "success" });
+                    }
+                  },
+                },
+              });
+            }
           }}
         />
       ) : (

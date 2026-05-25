@@ -2,7 +2,12 @@
 import React from "react";
 import { Button, IconButton, Icon, Tag, Modal, Input, Field } from "./Primitives";
 import { useIsMobile } from "./hooks";
-import { getIdeas, saveIdeas, createIdea, getArticles, type World, type Idea } from "./store";
+import {
+  getIdeas, saveIdeas, createIdea, getArticles,
+  softDeleteIdea, restoreLast,
+  type World, type Idea,
+} from "./store";
+import { useToast } from "./Toast";
 
 export function IdeaInbox({ world, searchQuery }: { world: World; searchQuery: string }) {
   const [ideas, setIdeas] = React.useState<Idea[]>(() => getIdeas(world.id));
@@ -12,6 +17,7 @@ export function IdeaInbox({ world, searchQuery }: { world: World; searchQuery: s
   const [showFileIdea, setShowFileIdea] = React.useState<Idea | null>(null);
   const fileRef = React.useRef<HTMLInputElement>(null);
   const isMobile = useIsMobile();
+  const toast = useToast();
 
   const reload = () => setIdeas(getIdeas(world.id));
 
@@ -37,10 +43,25 @@ export function IdeaInbox({ world, searchQuery }: { world: World; searchQuery: s
   };
 
   const handleDelete = (id: string) => {
-    const updated = ideas.filter((i) => i.id !== id);
-    saveIdeas(world.id, updated);
-    setIdeas(updated);
+    const deleted = ideas.find((i) => i.id === id);
+    const trashId = softDeleteIdea(world.id, id);
+    setIdeas(ideas.filter((i) => i.id !== id));
     if (selectedIdea?.id === id) setSelectedIdea(null);
+    if (trashId && deleted) {
+      toast.push({
+        message: `Deleted idea "${deleted.title}".`,
+        durationMs: 8000,
+        action: {
+          label: "Undo",
+          onClick: () => {
+            if (restoreLast(trashId).ok) {
+              reload();
+              toast.push({ message: `Restored "${deleted.title}".`, tone: "success" });
+            }
+          },
+        },
+      });
+    }
   };
 
   const handleUnfile = (idea: Idea) => {

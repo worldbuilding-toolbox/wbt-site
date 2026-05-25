@@ -4,8 +4,10 @@ import { Button, IconButton, Icon, Tag, Modal, Input, Field, Select } from "./Pr
 import { useIsMobile } from "./hooks";
 import {
   getEras, saveEras, getEvents, saveEvents, createEra, createEvent, updateWorld,
+  softDeleteEra, softDeleteEvent, restoreLast,
   type World, type Era, type TimelineEvent,
 } from "./store";
+import { useToast } from "./Toast";
 
 const ERA_COLORS = ["#7fdbff", "#6ad6a3", "#f0b860", "#e86464", "#a06a1d", "#8a91a3", "#5a4be3"];
 
@@ -18,10 +20,52 @@ export function Timeline({ world, onWorldChange }: { world: World; onWorldChange
   const [showSettings, setShowSettings] = React.useState(false);
   const [editEraId, setEditEraId] = React.useState<string | null>(null);
   const isMobile = useIsMobile();
+  const toast = useToast();
 
   const reload = () => {
     setEras(getEras(world.id));
     setEvents(getEvents(world.id));
+  };
+
+  const handleDeleteEvent = (ev: TimelineEvent) => {
+    const trashId = softDeleteEvent(world.id, ev.id);
+    reload();
+    if (selectedEvent?.id === ev.id) setSelectedEvent(null);
+    if (trashId) {
+      toast.push({
+        message: `Deleted event "${ev.title}".`,
+        durationMs: 8000,
+        action: {
+          label: "Undo",
+          onClick: () => {
+            if (restoreLast(trashId).ok) {
+              reload();
+              toast.push({ message: `Restored "${ev.title}".`, tone: "success" });
+            }
+          },
+        },
+      });
+    }
+  };
+
+  const handleDeleteEra = (era: Era) => {
+    const trashId = softDeleteEra(world.id, era.id);
+    reload();
+    if (trashId) {
+      toast.push({
+        message: `Deleted ${world.eraLabel?.toLowerCase() || "era"} "${era.name}".`,
+        durationMs: 8000,
+        action: {
+          label: "Undo",
+          onClick: () => {
+            if (restoreLast(trashId).ok) {
+              reload();
+              toast.push({ message: `Restored "${era.name}".`, tone: "success" });
+            }
+          },
+        },
+      });
+    }
   };
 
   // Absolute year for timeline positioning
@@ -296,15 +340,7 @@ export function Timeline({ world, onWorldChange }: { world: World; onWorldChange
                           {ev.desc && <div style={{ fontFamily: "var(--font-sans)", fontSize: 13, color: "var(--fg-secondary)", marginTop: 4, lineHeight: 1.5 }}>{ev.desc}</div>}
                         </div>
                         <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (confirm("Delete this event?")) {
-                              const updated = events.filter((x) => x.id !== ev.id);
-                              saveEvents(world.id, updated);
-                              setEvents(updated);
-                              if (selectedEvent?.id === ev.id) setSelectedEvent(null);
-                            }
-                          }}
+                          onClick={(e) => { e.stopPropagation(); handleDeleteEvent(ev); }}
                           style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--fg-muted)", padding: 4, display: "flex" }}
                         >
                           <Icon name="trash" size={14} />
@@ -327,12 +363,7 @@ export function Timeline({ world, onWorldChange }: { world: World; onWorldChange
           eras={eras}
           formatEraYear={formatEraYear}
           onClose={() => setSelectedEvent(null)}
-          onDelete={() => {
-            const updated = events.filter((e) => e.id !== selectedEvent.id);
-            saveEvents(world.id, updated);
-            setEvents(updated);
-            setSelectedEvent(null);
-          }}
+          onDelete={() => handleDeleteEvent(selectedEvent)}
           onSave={(updated) => {
             const evts = events.map((e) => e.id === updated.id ? updated : e);
             saveEvents(world.id, evts);
@@ -394,9 +425,10 @@ export function Timeline({ world, onWorldChange }: { world: World; onWorldChange
             setEditEraId(null);
           }}
           onDelete={() => {
-            const updated = eras.filter((e) => e.id !== editEraId);
-            saveEras(world.id, updated);
-            setEras(updated);
+            const era = eras.find((e) => e.id === editEraId);
+            if (era) {
+              handleDeleteEra(era);
+            }
             setEditEraId(null);
           }}
         />
