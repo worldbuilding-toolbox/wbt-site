@@ -3,6 +3,7 @@ import React from "react";
 import { Button, Icon, Modal, Input, Field, Textarea, Tag } from "./Primitives";
 import { useIsMobile } from "./hooks";
 import { createWorld, seedWorld, deleteWorld, type User, type World } from "./store";
+import { exportAccount, exportWorld } from "./export";
 
 export function Dashboard({
   user, worlds, onOpenWorld, onWorldsChange,
@@ -57,19 +58,42 @@ export function Dashboard({
             {worlds.length === 0 ? " Start your first." : " Open one, or start fresh."}
           </p>
         </div>
-        <Button
-          variant="primary"
-          icon="plus"
-          onClick={() => setShowCreate(true)}
-          style={isMobile ? { alignSelf: "stretch", justifyContent: "center" } : undefined}
-        >
-          New world
-        </Button>
+        <div style={{
+          display: "flex",
+          gap: 8,
+          flexDirection: isMobile ? "column" : "row",
+          alignItems: isMobile ? "stretch" : "center",
+        }}>
+          {worlds.length > 0 && (
+            <Button
+              variant="secondary"
+              icon="device-floppy"
+              onClick={() => exportAccount(user)}
+              style={isMobile ? { alignSelf: "stretch", justifyContent: "center" } : undefined}
+            >
+              Export everything
+            </Button>
+          )}
+          <Button
+            variant="primary"
+            icon="plus"
+            onClick={() => setShowCreate(true)}
+            style={isMobile ? { alignSelf: "stretch", justifyContent: "center" } : undefined}
+          >
+            New world
+          </Button>
+        </div>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fill, minmax(280px, 1fr))", gap: isMobile ? 12 : 16 }}>
         {worlds.map((w) => (
-          <WorldCard key={w.id} world={w} onOpen={() => onOpenWorld(w.id)} onDelete={() => setDeleteId(w.id)} />
+          <WorldCard
+            key={w.id}
+            world={w}
+            onOpen={() => onOpenWorld(w.id)}
+            onDelete={() => setDeleteId(w.id)}
+            onExport={() => exportWorld(w)}
+          />
         ))}
         <NewWorldCard onClick={() => setShowCreate(true)} />
       </div>
@@ -114,7 +138,7 @@ export function Dashboard({
 // World card
 // ============================================================================
 
-function WorldCard({ world, onOpen, onDelete }: { world: World; onOpen: () => void; onDelete: () => void }) {
+function WorldCard({ world, onOpen, onDelete, onExport }: { world: World; onOpen: () => void; onDelete: () => void; onExport: () => void }) {
   const [hover, setHover] = React.useState(false);
   const [menu, setMenu] = React.useState(false);
 
@@ -206,6 +230,7 @@ function WorldCard({ world, onOpen, onDelete }: { world: World; onOpen: () => vo
           onClick={(e) => e.stopPropagation()}
         >
           <MenuItem icon="arrow-right" onClick={() => { setMenu(false); onOpen(); }}>Open</MenuItem>
+          <MenuItem icon="device-floppy" onClick={() => { setMenu(false); onExport(); }}>Export</MenuItem>
           <MenuItem icon="trash" danger onClick={() => { setMenu(false); onDelete(); }}>Delete</MenuItem>
         </div>
       )}
