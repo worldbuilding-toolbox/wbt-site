@@ -19,7 +19,11 @@ export function Timeline({ world, onWorldChange }: { world: World; onWorldChange
   const [showAddEvent, setShowAddEvent] = React.useState(false);
   const [showSettings, setShowSettings] = React.useState(false);
   const [editEraId, setEditEraId] = React.useState<string | null>(null);
-  const [view, setView] = React.useState<{ min: number; max: number } | null>(null);
+  // Zoom is a stack of frames. Each frame is a year range. The top is what
+  // the spine renders; the next-to-top is what the mini-map renders as its
+  // own frame, so the brush always has room to drag tighter. [] means "fit
+  // everything to the data bounds".
+  const [frames, setFrames] = React.useState<Array<{ min: number; max: number }>>([]);
   const isMobile = useIsMobile();
   const toast = useToast();
 
@@ -99,14 +103,45 @@ export function Timeline({ world, onWorldChange }: { world: World; onWorldChange
   const dataMax = allYears.length ? Math.max(...allYears) : 500;
   const dataSpan = Math.max(1, dataMax - dataMin);
 
-  // View range — what's currently shown in the spine. Defaults to the data
-  // range; the mini-map brush moves / resizes it. We hold it in state only
-  // once the user has actually brushed (null = "follow data bounds"), so the
-  // visible range expands naturally as new eras/events are added.
-  const viewMin = view ? Math.max(dataMin, view.min) : dataMin;
-  const viewMax = view ? Math.min(dataMax, view.max) : dataMax;
+  // View range — top of the zoom stack (what the spine renders).
+  const dataFrame = { min: dataMin, max: dataMax };
+  const viewFrame = frames.length > 0 ? frames[frames.length - 1] : dataFrame;
+  // Mini-map context — the level one out from the current view. It's what
+  // the mini-map's track represents, so the brush has actual room to drag.
+  const mapFrame = frames.length > 1 ? frames[frames.length - 2] : dataFrame;
+
+  const viewMin = Math.max(mapFrame.min, viewFrame.min);
+  const viewMax = Math.min(mapFrame.max, viewFrame.max);
   const viewSpan = Math.max(1, viewMax - viewMin);
-  const isCustomView = view !== null && (viewMin !== dataMin || viewMax !== dataMax);
+  const isCustomView = frames.length > 0 && (viewMin !== dataMin || viewMax !== dataMax);
+
+  // Pushes the current view onto the stack so the mini-map re-frames around
+  // it. The visible spine doesn't move — the user just gets room to brush
+  // tighter from here.
+  const zoomIntoSelection = () => {
+    if (frames.length === 0) return;
+    setFrames([...frames, { ...frames[frames.length - 1] }]);
+  };
+  // Brush change inside the mini-map updates the current top frame.
+  const setView = (min: number, max: number) => {
+    if (frames.length === 0) {
+      setFrames([{ min, max }]);
+    } else {
+      const next = [...frames];
+      next[next.length - 1] = { min, max };
+      setFrames(next);
+    }
+  };
+  const popFrame = () => setFrames((f) => f.slice(0, -1));
+  const truncateTo = (depth: number) => setFrames((f) => f.slice(0, depth));
+  const showAll = () => setFrames([]);
+
+  // Detect when the user has brushed tight enough that they should be able
+  // to drill further — i.e., the brush is meaningfully smaller than the
+  // mini-map's own frame.
+  const canDrillDeeper = frames.length > 0 && (
+    (viewFrame.max - viewFrame.min) < (mapFrame.max - mapFrame.min) * 0.6
+  );
 
   // Positioning within the spine — relative to the visible viewport
   const pct = (year: number) => `${((year - viewMin) / viewSpan) * 100}%`;
@@ -149,7 +184,7 @@ export function Timeline({ world, onWorldChange }: { world: World; onWorldChange
           {!isMobile && <Tag tone="success" style={{ marginLeft: 8 }}>Auto-saved</Tag>}
           <div style={{ flex: 1 }} />
           {isCustomView && (
-            <Button variant="ghost" size="sm" icon="x" onClick={() => setView(null)}>
+            <Button variant="ghost" size="sm" icon="x" onClick={showAll}>
               Show all
             </Button>
           )}
@@ -170,13 +205,24 @@ export function Timeline({ world, onWorldChange }: { world: World; onWorldChange
           }}>
             <MiniMap
               eras={eras}
-              dataMin={dataMin}
-              dataMax={dataMax}
+              mapMin={mapFrame.min}
+              mapMax={mapFrame.max}
               viewMin={viewMin}
               viewMax={viewMax}
               formatYear={(y) => formatAbsYear(Math.round(y))}
-              onChange={(min, max) => setView({ min, max })}
+              onChange={setView}
+              onDrillIn={zoomIntoSelection}
+              canDrillIn={canDrillDeeper}
               isMobile={isMobile}
+            />
+            <FrameBreadcrumb
+              dataMin={dataMin}
+              dataMax={dataMax}
+              frames={frames}
+              formatYear={(y) => formatAbsYear(Math.round(y))}
+              onJump={truncateTo}
+              onShowAll={showAll}
+              onBack={popFrame}
             />
             <div style={{
               overflowX: isMobile ? "auto" : "visible",
@@ -969,45 +1015,47 @@ type DragState = {
 };
 
 function MiniMap({
-  eras, dataMin, dataMax, viewMin, viewMax,
-  formatYear, onChange, isMobile,
+  eras, mapMin, mapMax, viewMin, viewMax,
+  formatYear, onChange, onDrillIn, canDrillIn, isMobile,
 }: {
   eras: Era[];
-  dataMin: number;
-  dataMax: number;
+  mapMin: number;
+  mapMax: number;
   viewMin: number;
   viewMax: number;
   formatYear: (y: number) => string;
   onChange: (min: number, max: number) => void;
+  onDrillIn: () => void;
+  canDrillIn: boolean;
   isMobile: boolean;
 }) {
   const trackRef = React.useRef<HTMLDivElement | null>(null);
   const dragRef = React.useRef<DragState | null>(null);
-  const dataSpan = Math.max(1, dataMax - dataMin);
+  const mapSpan = Math.max(1, mapMax - mapMin);
 
-  // Minimum window — 0.5% of the data span — so you can never collapse to a
-  // point. For most worlds this means at least one year.
-  const minSpan = Math.max(1, dataSpan * 0.005);
+  // Minimum window — 0.5% of whatever the mini-map currently frames, with
+  // a 1-year hard floor.
+  const minSpan = Math.max(1, mapSpan * 0.005);
 
   const yearPct = (year: number) =>
-    Math.max(0, Math.min(100, ((year - dataMin) / dataSpan) * 100));
+    Math.max(0, Math.min(100, ((year - mapMin) / mapSpan) * 100));
 
   const onPointerMove = (e: React.PointerEvent) => {
     const d = dragRef.current;
     if (!d) return;
-    const yearPerPx = dataSpan / Math.max(1, d.rectWidth);
+    const yearPerPx = mapSpan / Math.max(1, d.rectWidth);
     const dyears = (e.clientX - d.startX) * yearPerPx;
     let nmin = d.startViewMin;
     let nmax = d.startViewMax;
     if (d.mode === "body") {
       nmin += dyears;
       nmax += dyears;
-      if (nmin < dataMin) { nmax += dataMin - nmin; nmin = dataMin; }
-      if (nmax > dataMax) { nmin -= nmax - dataMax; nmax = dataMax; }
+      if (nmin < mapMin) { nmax += mapMin - nmin; nmin = mapMin; }
+      if (nmax > mapMax) { nmin -= nmax - mapMax; nmax = mapMax; }
     } else if (d.mode === "left") {
-      nmin = Math.max(dataMin, Math.min(d.startViewMax - minSpan, d.startViewMin + dyears));
+      nmin = Math.max(mapMin, Math.min(d.startViewMax - minSpan, d.startViewMin + dyears));
     } else if (d.mode === "right") {
-      nmax = Math.min(dataMax, Math.max(d.startViewMin + minSpan, d.startViewMax + dyears));
+      nmax = Math.min(mapMax, Math.max(d.startViewMin + minSpan, d.startViewMax + dyears));
     }
     onChange(nmin, nmax);
   };
@@ -1035,12 +1083,12 @@ function MiniMap({
     if (!trackRef.current) return;
     const rect = trackRef.current.getBoundingClientRect();
     const frac = (e.clientX - rect.left) / rect.width;
-    const targetCentre = dataMin + frac * dataSpan;
+    const targetCentre = mapMin + frac * mapSpan;
     const half = (viewMax - viewMin) / 2;
     let nmin = targetCentre - half;
     let nmax = targetCentre + half;
-    if (nmin < dataMin) { nmax += dataMin - nmin; nmin = dataMin; }
-    if (nmax > dataMax) { nmin -= nmax - dataMax; nmax = dataMax; }
+    if (nmin < mapMin) { nmax += mapMin - nmin; nmin = mapMin; }
+    if (nmax > mapMax) { nmin -= nmax - mapMax; nmax = mapMax; }
     onChange(nmin, nmax);
   };
 
@@ -1061,9 +1109,27 @@ function MiniMap({
           {formatYear(viewMin)} — {formatYear(viewMax)}
         </span>
         <div style={{ flex: 1 }} />
-        <span style={{ opacity: isFull ? 0.5 : 1 }}>
-          {isFull ? "Drag the bar to zoom in" : "Drag the edges to resize · drag the middle to pan"}
-        </span>
+        {canDrillIn ? (
+          <button
+            onClick={onDrillIn}
+            style={{
+              background: "transparent",
+              border: "1px solid var(--accent)",
+              color: "var(--accent)",
+              cursor: "pointer",
+              fontFamily: "var(--font-mono)", fontSize: 10,
+              textTransform: "uppercase", letterSpacing: "0.12em",
+              padding: "3px 8px",
+              borderRadius: "var(--radius-sm)",
+            }}
+          >
+            Zoom in further
+          </button>
+        ) : (
+          <span style={{ opacity: isFull ? 0.5 : 1 }}>
+            {isFull ? "Drag the bar to zoom in" : "Drag the edges · drag the middle to pan"}
+          </span>
+        )}
       </div>
       <div
         ref={trackRef}
@@ -1122,6 +1188,95 @@ function MiniMap({
         </div>
       </div>
     </div>
+  );
+}
+
+function FrameBreadcrumb({
+  dataMin, dataMax, frames, formatYear, onJump, onShowAll, onBack,
+}: {
+  dataMin: number;
+  dataMax: number;
+  frames: Array<{ min: number; max: number }>;
+  formatYear: (y: number) => string;
+  onJump: (depth: number) => void;
+  onShowAll: () => void;
+  onBack: () => void;
+}) {
+  if (frames.length === 0) return null;
+
+  const label = (f: { min: number; max: number }) =>
+    `${formatYear(f.min)} — ${formatYear(f.max)}`;
+
+  return (
+    <div style={{
+      display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap",
+      marginBottom: 18,
+      fontFamily: "var(--font-mono)", fontSize: 10,
+      textTransform: "uppercase", letterSpacing: "0.1em",
+    }}>
+      <button
+        onClick={onBack}
+        title="Zoom out one level"
+        aria-label="Zoom out one level"
+        style={{
+          background: "transparent",
+          border: "1px solid var(--border)",
+          color: "var(--fg-secondary)",
+          padding: "2px 7px",
+          borderRadius: "var(--radius-sm)",
+          cursor: "pointer",
+          fontFamily: "var(--font-mono)", fontSize: 11, lineHeight: 1,
+        }}
+      >
+        ←
+      </button>
+      <span style={{ color: "var(--fg-muted)" }}>Zoom path:</span>
+      <BreadcrumbPill onClick={onShowAll}>
+        All · {formatYear(dataMin)} — {formatYear(dataMax)}
+      </BreadcrumbPill>
+      {frames.map((f, i) => (
+        <React.Fragment key={i}>
+          <span style={{ color: "var(--fg-muted)" }}>▸</span>
+          <BreadcrumbPill
+            onClick={() => onJump(i + 1)}
+            active={i === frames.length - 1}
+          >
+            {label(f)}
+          </BreadcrumbPill>
+        </React.Fragment>
+      ))}
+    </div>
+  );
+}
+
+function BreadcrumbPill({
+  children, onClick, active,
+}: {
+  children: React.ReactNode;
+  onClick: () => void;
+  active?: boolean;
+}) {
+  const [hover, setHover] = React.useState(false);
+  return (
+    <button
+      onClick={onClick}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        background: active
+          ? "var(--bg-elevated)"
+          : hover ? "rgba(127, 219, 255, 0.08)" : "transparent",
+        border: `1px solid ${active ? "var(--accent)" : "var(--border)"}`,
+        color: active ? "var(--accent)" : "var(--fg-secondary)",
+        padding: "3px 8px",
+        borderRadius: "var(--radius-sm)",
+        cursor: active ? "default" : "pointer",
+        fontFamily: "var(--font-mono)", fontSize: 10,
+        textTransform: "uppercase", letterSpacing: "0.1em",
+      }}
+    >
+      {children}
+    </button>
   );
 }
 
