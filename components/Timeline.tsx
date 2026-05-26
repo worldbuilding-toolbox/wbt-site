@@ -19,9 +19,7 @@ export function Timeline({ world, onWorldChange }: { world: World; onWorldChange
   const [showAddEvent, setShowAddEvent] = React.useState(false);
   const [showSettings, setShowSettings] = React.useState(false);
   const [editEraId, setEditEraId] = React.useState<string | null>(null);
-  const [zoom, setZoom] = React.useState(1);
-  const scrollRef = React.useRef<HTMLDivElement | null>(null);
-  const pendingCenter = React.useRef<number | null>(null);
+  const [view, setView] = React.useState<{ min: number; max: number } | null>(null);
   const isMobile = useIsMobile();
   const toast = useToast();
 
@@ -92,43 +90,36 @@ export function Timeline({ world, onWorldChange }: { world: World; onWorldChange
 
   const eraForEvent = (ev: TimelineEvent) => eras.find((e) => e.id === ev.eraId);
 
-  // Compute absolute year range for timeline
+  // Data range — derived from the world itself
   const allYears = [
     ...eras.flatMap((e) => [e.from, e.to]),
     ...events.map((e) => absYear(e)),
   ];
-  const minYear = allYears.length ? Math.min(...allYears) : -100;
-  const maxYear = allYears.length ? Math.max(...allYears) : 500;
-  const span = maxYear - minYear || 1;
+  const dataMin = allYears.length ? Math.min(...allYears) : -100;
+  const dataMax = allYears.length ? Math.max(...allYears) : 500;
+  const dataSpan = Math.max(1, dataMax - dataMin);
 
-  const pct = (year: number) => `${((year - minYear) / span) * 100}%`;
+  // View range — what's currently shown in the spine. Defaults to the data
+  // range; the mini-map brush moves / resizes it. We hold it in state only
+  // once the user has actually brushed (null = "follow data bounds"), so the
+  // visible range expands naturally as new eras/events are added.
+  const viewMin = view ? Math.max(dataMin, view.min) : dataMin;
+  const viewMax = view ? Math.min(dataMax, view.max) : dataMax;
+  const viewSpan = Math.max(1, viewMax - viewMin);
+  const isCustomView = view !== null && (viewMin !== dataMin || viewMax !== dataMax);
 
-  // Zoom: stretches the spine wrapper without touching positioning math.
-  // Width % stays relative to the wrapper, so era bands and event dots stay
-  // in their right years; the wrapper itself grows, so a year is rendered
-  // wider on screen.
-  const ZOOM_MIN = 1;
-  const ZOOM_MAX = 8;
-  const ZOOM_STEP = 0.5;
+  // Positioning within the spine — relative to the visible viewport
+  const pct = (year: number) => `${((year - viewMin) / viewSpan) * 100}%`;
 
-  const captureCenter = () => {
-    const el = scrollRef.current;
-    if (!el || el.scrollWidth === 0) return;
-    pendingCenter.current = (el.scrollLeft + el.clientWidth / 2) / el.scrollWidth;
+  // Era band geometry, clipped to the visible range
+  const eraBand = (era: Era): { left: number; width: number } | null => {
+    const left = ((era.from - viewMin) / viewSpan) * 100;
+    const right = ((era.to - viewMin) / viewSpan) * 100;
+    const cl = Math.max(0, left);
+    const cr = Math.min(100, right);
+    if (cr <= cl) return null;
+    return { left: cl, width: cr - cl };
   };
-
-  const changeZoom = (next: number) => {
-    captureCenter();
-    setZoom(Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, next)));
-  };
-
-  React.useLayoutEffect(() => {
-    if (pendingCenter.current == null) return;
-    const el = scrollRef.current;
-    if (!el) return;
-    el.scrollLeft = pendingCenter.current * el.scrollWidth - el.clientWidth / 2;
-    pendingCenter.current = null;
-  }, [zoom]);
 
   const topBarHeight = isMobile ? 52 : 56;
 
@@ -149,13 +140,19 @@ export function Timeline({ world, onWorldChange }: { world: World; onWorldChange
             </h2>
             {eras.length > 0 && (
               <div style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--fg-muted)", textTransform: "uppercase", letterSpacing: "0.1em", marginTop: 2 }}>
-                {formatAbsYear(minYear)} — {formatAbsYear(maxYear)}
+                {isCustomView
+                  ? <>Viewing {formatAbsYear(Math.round(viewMin))} — {formatAbsYear(Math.round(viewMax))}</>
+                  : <>{formatAbsYear(dataMin)} — {formatAbsYear(dataMax)}</>}
               </div>
             )}
           </div>
           {!isMobile && <Tag tone="success" style={{ marginLeft: 8 }}>Auto-saved</Tag>}
           <div style={{ flex: 1 }} />
-          <ZoomControls zoom={zoom} onChange={changeZoom} min={ZOOM_MIN} max={ZOOM_MAX} step={ZOOM_STEP} />
+          {isCustomView && (
+            <Button variant="ghost" size="sm" icon="x" onClick={() => setView(null)}>
+              Show all
+            </Button>
+          )}
           <IconButton icon="settings" label="Timeline settings" onClick={() => setShowSettings(true)} />
           <Button variant="secondary" icon="plus" size="sm" onClick={() => setShowAddEra(true)}>
             {isMobile ? (world.eraLabel || "Era") : `Add ${world.eraLabel || "Era"}`}
@@ -171,20 +168,24 @@ export function Timeline({ world, onWorldChange }: { world: World; onWorldChange
           <div style={{
             padding: isMobile ? "20px 16px 80px" : "32px 24px 96px",
           }}>
-            <div
-              ref={scrollRef}
-              style={{
-                overflowX: "auto",
-                marginLeft: isMobile ? -16 : 0,
-                marginRight: isMobile ? -16 : 0,
-                paddingLeft: isMobile ? 16 : 0,
-                paddingRight: isMobile ? 16 : 0,
-              }}
-            >
+            <MiniMap
+              eras={eras}
+              dataMin={dataMin}
+              dataMax={dataMax}
+              viewMin={viewMin}
+              viewMax={viewMax}
+              formatYear={(y) => formatAbsYear(Math.round(y))}
+              onChange={(min, max) => setView({ min, max })}
+              isMobile={isMobile}
+            />
             <div style={{
-              width: `${100 * zoom}%`,
-              minWidth: isMobile ? 668 : 760,
+              overflowX: isMobile ? "auto" : "visible",
+              marginLeft: isMobile ? -16 : 0,
+              marginRight: isMobile ? -16 : 0,
+              paddingLeft: isMobile ? 16 : 0,
+              paddingRight: isMobile ? 16 : 0,
             }}>
+            <div style={{ minWidth: isMobile ? 668 : "auto" }}>
             {/* Era bands */}
             {eras.length > 0 && (
               <div style={{ marginBottom: 16 }}>
@@ -193,16 +194,16 @@ export function Timeline({ world, onWorldChange }: { world: World; onWorldChange
                 </div>
                 <div style={{ position: "relative", height: 32 }}>
                   {eras.map((era) => {
-                    const left = ((era.from - minYear) / span) * 100;
-                    const width = ((era.to - era.from) / span) * 100;
+                    const band = eraBand(era);
+                    if (!band) return null;
                     return (
                       <button
                         key={era.id}
                         onClick={() => setEditEraId(era.id)}
                         style={{
                           position: "absolute",
-                          left: `${Math.max(0, left)}%`,
-                          width: `${Math.min(width, 100 - Math.max(0, left))}%`,
+                          left: `${band.left}%`,
+                          width: `${band.width}%`,
                           height: "100%",
                           background: `${era.color}22`,
                           border: `1px solid ${era.color}66`,
@@ -230,7 +231,7 @@ export function Timeline({ world, onWorldChange }: { world: World; onWorldChange
               {/* Absolute year ticks — for orientation only */}
               <div style={{ position: "relative", height: 24, marginBottom: 0 }}>
                 {[0, 25, 50, 75, 100].map((p) => {
-                  const year = minYear + (p / 100) * span;
+                  const year = viewMin + (p / 100) * viewSpan;
                   return (
                     <div
                       key={p}
@@ -954,95 +955,214 @@ function EditEraModal({ era, otherEras, eventCount, onClose, onSave, onDelete }:
   );
 }
 
-function ZoomControls({
-  zoom, min, max, step, onChange,
+// ============================================================================
+// MiniMap — full timeline at compressed scale, with a draggable viewport
+// ============================================================================
+
+type DragMode = "body" | "left" | "right";
+type DragState = {
+  mode: DragMode;
+  startX: number;
+  rectWidth: number;
+  startViewMin: number;
+  startViewMax: number;
+};
+
+function MiniMap({
+  eras, dataMin, dataMax, viewMin, viewMax,
+  formatYear, onChange, isMobile,
 }: {
-  zoom: number; min: number; max: number; step: number;
-  onChange: (next: number) => void;
+  eras: Era[];
+  dataMin: number;
+  dataMax: number;
+  viewMin: number;
+  viewMax: number;
+  formatYear: (y: number) => string;
+  onChange: (min: number, max: number) => void;
+  isMobile: boolean;
 }) {
-  const atMin = zoom <= min + 0.001;
-  const atMax = zoom >= max - 0.001;
-  const pct = Math.round(zoom * 100);
+  const trackRef = React.useRef<HTMLDivElement | null>(null);
+  const dragRef = React.useRef<DragState | null>(null);
+  const dataSpan = Math.max(1, dataMax - dataMin);
+
+  // Minimum window — 0.5% of the data span — so you can never collapse to a
+  // point. For most worlds this means at least one year.
+  const minSpan = Math.max(1, dataSpan * 0.005);
+
+  const yearPct = (year: number) =>
+    Math.max(0, Math.min(100, ((year - dataMin) / dataSpan) * 100));
+
+  const onPointerMove = (e: React.PointerEvent) => {
+    const d = dragRef.current;
+    if (!d) return;
+    const yearPerPx = dataSpan / Math.max(1, d.rectWidth);
+    const dyears = (e.clientX - d.startX) * yearPerPx;
+    let nmin = d.startViewMin;
+    let nmax = d.startViewMax;
+    if (d.mode === "body") {
+      nmin += dyears;
+      nmax += dyears;
+      if (nmin < dataMin) { nmax += dataMin - nmin; nmin = dataMin; }
+      if (nmax > dataMax) { nmin -= nmax - dataMax; nmax = dataMax; }
+    } else if (d.mode === "left") {
+      nmin = Math.max(dataMin, Math.min(d.startViewMax - minSpan, d.startViewMin + dyears));
+    } else if (d.mode === "right") {
+      nmax = Math.min(dataMax, Math.max(d.startViewMin + minSpan, d.startViewMax + dyears));
+    }
+    onChange(nmin, nmax);
+  };
+
+  const startDrag = (mode: DragMode) => (e: React.PointerEvent<HTMLDivElement>) => {
+    e.stopPropagation();
+    if (!trackRef.current) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    dragRef.current = {
+      mode,
+      startX: e.clientX,
+      rectWidth: trackRef.current.getBoundingClientRect().width,
+      startViewMin: viewMin,
+      startViewMax: viewMax,
+    };
+  };
+
+  const endDrag = (e: React.PointerEvent<HTMLDivElement>) => {
+    try { e.currentTarget.releasePointerCapture(e.pointerId); } catch {}
+    dragRef.current = null;
+  };
+
+  // Click on empty track → centre brush of current size on the click point
+  const onTrackPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!trackRef.current) return;
+    const rect = trackRef.current.getBoundingClientRect();
+    const frac = (e.clientX - rect.left) / rect.width;
+    const targetCentre = dataMin + frac * dataSpan;
+    const half = (viewMax - viewMin) / 2;
+    let nmin = targetCentre - half;
+    let nmax = targetCentre + half;
+    if (nmin < dataMin) { nmax += dataMin - nmin; nmin = dataMin; }
+    if (nmax > dataMax) { nmin -= nmax - dataMax; nmax = dataMax; }
+    onChange(nmin, nmax);
+  };
+
+  const leftPct = yearPct(viewMin);
+  const widthPct = Math.max(0.5, yearPct(viewMax) - leftPct);
+  const isFull = leftPct <= 0.001 && (leftPct + widthPct) >= 99.999;
+  const trackHeight = isMobile ? 32 : 28;
+
   return (
-    <div
-      role="group"
-      aria-label="Timeline zoom"
-      style={{
-        display: "inline-flex",
-        alignItems: "stretch",
-        border: "1px solid var(--border-strong)",
-        borderRadius: "var(--radius-md)",
-        overflow: "hidden",
-        background: "var(--bg-elevated)",
-        height: 28,
-      }}
-    >
-      <ZoomButton
-        label="Zoom out"
-        disabled={atMin}
-        onClick={() => onChange(zoom - step)}
-      >
-        −
-      </ZoomButton>
-      <button
-        type="button"
-        title="Reset zoom"
-        onClick={() => onChange(1)}
-        disabled={Math.abs(zoom - 1) < 0.001}
+    <div style={{ marginBottom: isMobile ? 18 : 22 }}>
+      <div style={{
+        display: "flex", alignItems: "center", gap: 10, marginBottom: 6,
+        fontFamily: "var(--font-mono)", fontSize: 10,
+        color: "var(--fg-muted)", textTransform: "uppercase", letterSpacing: "0.12em",
+      }}>
+        <span>Range</span>
+        <span style={{ color: "var(--fg-secondary)" }}>
+          {formatYear(viewMin)} — {formatYear(viewMax)}
+        </span>
+        <div style={{ flex: 1 }} />
+        <span style={{ opacity: isFull ? 0.5 : 1 }}>
+          {isFull ? "Drag the bar to zoom in" : "Drag the edges to resize · drag the middle to pan"}
+        </span>
+      </div>
+      <div
+        ref={trackRef}
+        onPointerDown={onTrackPointerDown}
         style={{
-          background: "transparent",
-          border: "none",
-          borderLeft: "1px solid var(--border)",
-          borderRight: "1px solid var(--border)",
-          color: "var(--fg-secondary)",
-          fontFamily: "var(--font-mono)",
-          fontSize: 11,
-          letterSpacing: "0.08em",
-          padding: "0 10px",
-          cursor: Math.abs(zoom - 1) < 0.001 ? "default" : "pointer",
-          minWidth: 52,
+          position: "relative",
+          height: trackHeight,
+          background: "var(--bg-sunken)",
+          border: "1px solid var(--border)",
+          borderRadius: "var(--radius-sm)",
+          overflow: "hidden",
+          cursor: "pointer",
+          touchAction: "none",
         }}
       >
-        {pct}%
-      </button>
-      <ZoomButton
-        label="Zoom in"
-        disabled={atMax}
-        onClick={() => onChange(zoom + step)}
-      >
-        +
-      </ZoomButton>
+        {/* Compressed era blocks behind the brush */}
+        {eras.map((era) => {
+          const l = yearPct(era.from);
+          const r = yearPct(era.to);
+          if (r <= l) return null;
+          return (
+            <div
+              key={era.id}
+              style={{
+                position: "absolute",
+                left: `${l}%`,
+                width: `${r - l}%`,
+                top: 4, bottom: 4,
+                background: `${era.color}55`,
+                borderRight: `1px solid ${era.color}88`,
+                pointerEvents: "none",
+              }}
+            />
+          );
+        })}
+
+        {/* Viewport brush */}
+        <div
+          onPointerDown={startDrag("body")}
+          onPointerMove={onPointerMove}
+          onPointerUp={endDrag}
+          onPointerCancel={endDrag}
+          style={{
+            position: "absolute",
+            left: `${leftPct}%`,
+            width: `${widthPct}%`,
+            top: 0, bottom: 0,
+            background: "var(--cyan-glow)",
+            border: "1px solid var(--accent)",
+            cursor: "grab",
+            touchAction: "none",
+          }}
+        >
+          <BrushHandle side="left" onPointerDown={startDrag("left")} onPointerMove={onPointerMove} onPointerUp={endDrag} />
+          <BrushHandle side="right" onPointerDown={startDrag("right")} onPointerMove={onPointerMove} onPointerUp={endDrag} />
+        </div>
+      </div>
     </div>
   );
 }
 
-function ZoomButton({
-  label, disabled, onClick, children,
+function BrushHandle({
+  side, onPointerDown, onPointerMove, onPointerUp,
 }: {
-  label: string; disabled: boolean; onClick: () => void; children: React.ReactNode;
+  side: "left" | "right";
+  onPointerDown: (e: React.PointerEvent<HTMLDivElement>) => void;
+  onPointerMove: (e: React.PointerEvent<HTMLDivElement>) => void;
+  onPointerUp: (e: React.PointerEvent<HTMLDivElement>) => void;
 }) {
   return (
-    <button
-      type="button"
-      aria-label={label}
-      title={label}
-      disabled={disabled}
-      onClick={onClick}
+    <div
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerUp}
+      aria-label={`${side === "left" ? "Earlier" : "Later"} edge`}
+      role="slider"
       style={{
-        background: "transparent",
-        border: "none",
-        color: disabled ? "var(--fg-muted)" : "var(--fg-secondary)",
-        cursor: disabled ? "default" : "pointer",
-        opacity: disabled ? 0.4 : 1,
-        fontFamily: "var(--font-mono)",
-        fontSize: 16,
-        lineHeight: 1,
-        padding: "0 10px",
-        minWidth: 28,
+        position: "absolute",
+        top: -1, bottom: -1,
+        [side]: -6,
+        width: 14,
+        cursor: "ew-resize",
+        touchAction: "none",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
       }}
     >
-      {children}
-    </button>
+      <div
+        style={{
+          width: 4,
+          height: "70%",
+          background: "var(--accent)",
+          borderRadius: 2,
+          boxShadow: "0 0 6px var(--cyan-glow)",
+        }}
+      />
+    </div>
   );
 }
 
