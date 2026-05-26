@@ -19,6 +19,9 @@ export function Timeline({ world, onWorldChange }: { world: World; onWorldChange
   const [showAddEvent, setShowAddEvent] = React.useState(false);
   const [showSettings, setShowSettings] = React.useState(false);
   const [editEraId, setEditEraId] = React.useState<string | null>(null);
+  const [zoom, setZoom] = React.useState(1);
+  const scrollRef = React.useRef<HTMLDivElement | null>(null);
+  const pendingCenter = React.useRef<number | null>(null);
   const isMobile = useIsMobile();
   const toast = useToast();
 
@@ -100,6 +103,33 @@ export function Timeline({ world, onWorldChange }: { world: World; onWorldChange
 
   const pct = (year: number) => `${((year - minYear) / span) * 100}%`;
 
+  // Zoom: stretches the spine wrapper without touching positioning math.
+  // Width % stays relative to the wrapper, so era bands and event dots stay
+  // in their right years; the wrapper itself grows, so a year is rendered
+  // wider on screen.
+  const ZOOM_MIN = 1;
+  const ZOOM_MAX = 8;
+  const ZOOM_STEP = 0.5;
+
+  const captureCenter = () => {
+    const el = scrollRef.current;
+    if (!el || el.scrollWidth === 0) return;
+    pendingCenter.current = (el.scrollLeft + el.clientWidth / 2) / el.scrollWidth;
+  };
+
+  const changeZoom = (next: number) => {
+    captureCenter();
+    setZoom(Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, next)));
+  };
+
+  React.useLayoutEffect(() => {
+    if (pendingCenter.current == null) return;
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollLeft = pendingCenter.current * el.scrollWidth - el.clientWidth / 2;
+    pendingCenter.current = null;
+  }, [zoom]);
+
   const topBarHeight = isMobile ? 52 : 56;
 
   return (
@@ -125,6 +155,7 @@ export function Timeline({ world, onWorldChange }: { world: World; onWorldChange
           </div>
           {!isMobile && <Tag tone="success" style={{ marginLeft: 8 }}>Auto-saved</Tag>}
           <div style={{ flex: 1 }} />
+          <ZoomControls zoom={zoom} onChange={changeZoom} min={ZOOM_MIN} max={ZOOM_MAX} step={ZOOM_STEP} />
           <IconButton icon="settings" label="Timeline settings" onClick={() => setShowSettings(true)} />
           <Button variant="secondary" icon="plus" size="sm" onClick={() => setShowAddEra(true)}>
             {isMobile ? (world.eraLabel || "Era") : `Add ${world.eraLabel || "Era"}`}
@@ -139,16 +170,21 @@ export function Timeline({ world, onWorldChange }: { world: World; onWorldChange
         ) : (
           <div style={{
             padding: isMobile ? "20px 16px 80px" : "32px 24px 96px",
-            minWidth: isMobile ? undefined : 800,
           }}>
+            <div
+              ref={scrollRef}
+              style={{
+                overflowX: "auto",
+                marginLeft: isMobile ? -16 : 0,
+                marginRight: isMobile ? -16 : 0,
+                paddingLeft: isMobile ? 16 : 0,
+                paddingRight: isMobile ? 16 : 0,
+              }}
+            >
             <div style={{
-              overflowX: isMobile ? "auto" : "visible",
-              marginLeft: isMobile ? -16 : 0,
-              marginRight: isMobile ? -16 : 0,
-              paddingLeft: isMobile ? 16 : 0,
-              paddingRight: isMobile ? 16 : 0,
+              width: `${100 * zoom}%`,
+              minWidth: isMobile ? 668 : 760,
             }}>
-            <div style={{ minWidth: isMobile ? 668 : "auto" }}>
             {/* Era bands */}
             {eras.length > 0 && (
               <div style={{ marginBottom: 16 }}>
@@ -915,6 +951,98 @@ function EditEraModal({ era, otherEras, eventCount, onClose, onSave, onDelete }:
         </div>
       </div>
     </Modal>
+  );
+}
+
+function ZoomControls({
+  zoom, min, max, step, onChange,
+}: {
+  zoom: number; min: number; max: number; step: number;
+  onChange: (next: number) => void;
+}) {
+  const atMin = zoom <= min + 0.001;
+  const atMax = zoom >= max - 0.001;
+  const pct = Math.round(zoom * 100);
+  return (
+    <div
+      role="group"
+      aria-label="Timeline zoom"
+      style={{
+        display: "inline-flex",
+        alignItems: "stretch",
+        border: "1px solid var(--border-strong)",
+        borderRadius: "var(--radius-md)",
+        overflow: "hidden",
+        background: "var(--bg-elevated)",
+        height: 28,
+      }}
+    >
+      <ZoomButton
+        label="Zoom out"
+        disabled={atMin}
+        onClick={() => onChange(zoom - step)}
+      >
+        −
+      </ZoomButton>
+      <button
+        type="button"
+        title="Reset zoom"
+        onClick={() => onChange(1)}
+        disabled={Math.abs(zoom - 1) < 0.001}
+        style={{
+          background: "transparent",
+          border: "none",
+          borderLeft: "1px solid var(--border)",
+          borderRight: "1px solid var(--border)",
+          color: "var(--fg-secondary)",
+          fontFamily: "var(--font-mono)",
+          fontSize: 11,
+          letterSpacing: "0.08em",
+          padding: "0 10px",
+          cursor: Math.abs(zoom - 1) < 0.001 ? "default" : "pointer",
+          minWidth: 52,
+        }}
+      >
+        {pct}%
+      </button>
+      <ZoomButton
+        label="Zoom in"
+        disabled={atMax}
+        onClick={() => onChange(zoom + step)}
+      >
+        +
+      </ZoomButton>
+    </div>
+  );
+}
+
+function ZoomButton({
+  label, disabled, onClick, children,
+}: {
+  label: string; disabled: boolean; onClick: () => void; children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      disabled={disabled}
+      onClick={onClick}
+      style={{
+        background: "transparent",
+        border: "none",
+        color: disabled ? "var(--fg-muted)" : "var(--fg-secondary)",
+        cursor: disabled ? "default" : "pointer",
+        opacity: disabled ? 0.4 : 1,
+        fontFamily: "var(--font-mono)",
+        fontSize: 16,
+        lineHeight: 1,
+        padding: "0 10px",
+        minWidth: 28,
+      }}
+    >
+      {children}
+    </button>
   );
 }
 
